@@ -38,16 +38,16 @@ dependencies {
     // Server framework - transitively provides spring-boot-starter-web and
     // spring-boot-starter-actuator via api() exports. Phase 6b.3 swapped the
     // previous spring-boot-starter + spring-boot-starter-actuator pair for this
-    // single dep so the Spring setup matches simplified-server / server-api, and
-    // simplified-data picks up the servlet container required for the
+    // single dep so the Spring setup matches server / server-api, and
+    // data picks up the servlet container required for the
     // /actuator/prometheus scrape endpoint. API key authentication is disabled
-    // in application.properties because simplified-data exposes no REST
+    // in application.properties because data exposes no REST
     // endpoints to protect.
     implementation("com.github.simplified-dev:spring-framework:master-SNAPSHOT")
 
     // Micrometer Prometheus registry - Phase 6b.3. Version pinned explicitly via
     // the catalog to avoid drift against Spring Boot's managed dependencies
-    // since simplified-data does not import spring-boot-dependencies as a BOM.
+    // since data does not import spring-boot-dependencies as a BOM.
     implementation(libs.micrometer.registry.prometheus)
 
     // Hazelcast - promoted from runtimeOnly to implementation in Phase 6b because
@@ -62,10 +62,10 @@ dependencies {
     implementation("com.github.simplified-dev:client") { version { strictly("3d87a03") } }
     implementation("com.github.simplified-dev:gson-extras") { version { strictly("2ba8143") } }
 
-    // Split minecraft-api modules - simplified-data only consumes the persistence API.
+    // Split minecraft-api modules - data only consumes the persistence API.
     // SkyBlockData, SkyBlockFactory, the 43 JPA entities, and minecraft-text (transitively
     // via api()) all flow in from this single dep.
-    implementation("com.github.simplified-api:skyblock:master-SNAPSHOT")
+    implementation("com.github.api:skyblock:master-SNAPSHOT")
 }
 
 tasks {
@@ -84,7 +84,7 @@ tasks {
         append("META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports")
 
         manifest {
-            attributes["Main-Class"] = "dev.sbs.simplifieddata.SimplifiedData"
+            attributes["Main-Class"] = "dev.sbs.data.SimplifiedData"
             attributes["Multi-Release"] = "true"
         }
 

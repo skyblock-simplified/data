@@ -3,7 +3,7 @@
   IMPORTANT: this file MUST stay in sync with infra/hazelcast/hazelcast-client.xml.
   Phase 2c expedient: the persistence library loads this file from the classpath,
   so it must live inside this module's resources, but it must also live in
-  infra/hazelcast/ so other future Hazelcast clients (simplified-bot, simplified-server)
+  infra/hazelcast/ so other future Hazelcast clients (bot, server)
   can find a single canonical reference.
 
   Phase 4+ should consolidate to a shared resource (gradle resources copy task or

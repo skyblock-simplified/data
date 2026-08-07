@@ -1,1 +1,1 @@
-rootProject.name = "simplified-data"
+rootProject.name = "data"
