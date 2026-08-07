@@ -59,13 +59,13 @@ dependencies {
     implementation(libs.hazelcast)
 
     // Simplified infrastructure (formerly transitive via minecraft-api)
-    implementation("com.github.simplified-dev:client:master-SNAPSHOT")
-    implementation("com.github.simplified-dev:gson-extras:master-SNAPSHOT")
+    implementation("com.github.simplified-dev:client") { version { strictly("3d87a03") } }
+    implementation("com.github.simplified-dev:gson-extras") { version { strictly("2ba8143") } }
 
     // Split minecraft-api modules - simplified-data only consumes the persistence API.
     // SkyBlockData, SkyBlockFactory, the 43 JPA entities, and minecraft-text (transitively
     // via api()) all flow in from this single dep.
-    implementation("com.github.simplified-api:skyblock-data:master-SNAPSHOT")
+    implementation("com.github.simplified-api:skyblock:master-SNAPSHOT")
 }
 
 tasks {
