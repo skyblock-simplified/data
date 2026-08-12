@@ -1,10 +1,10 @@
 package dev.sbs.data.poller;
 
-import com.google.gson.Gson;
-import dev.sbs.data.DataApi;
-import dev.sbs.skyblockdata.contract.SkyBlockDataContract;
 import api.simplified.github.exception.GitHubApiException;
 import api.simplified.github.response.GitHubCommit;
+import api.simplified.skyblock.contract.SkyBlockDataContract;
+import com.google.gson.Gson;
+import dev.sbs.data.DataApi;
 import dev.simplified.client.exception.NotModifiedException;
 import dev.simplified.client.response.Response;
 import dev.simplified.persistence.JpaConfig;
@@ -232,7 +232,7 @@ class AssetPollerTest {
         assertThat(this.refreshTrigger.invocations, hasSize(1));
         assertThat(
             this.refreshTrigger.invocations.getFirst(),
-            contains(dev.sbs.skyblockdata.model.Item.class)
+            contains(api.simplified.skyblock.model.Item.class)
         );
     }
 
@@ -264,7 +264,7 @@ class AssetPollerTest {
         this.contract.commit = firstCommit;
         this.contract.fileContents.put(
             "data/v1/index.json",
-            manifestWithModelClass("sha-one", "dev.sbs.skyblockdata.model.Item", "com.example.GhostModel")
+            manifestWithModelClass("sha-one", "api.simplified.skyblock.model.Item", "com.example.GhostModel")
         );
         this.accessor.next = response(200, Map.of("etag", List.of("W/\"etag-one\"")), firstCommit);
 
@@ -282,7 +282,7 @@ class AssetPollerTest {
             "data/v1/index.json",
             manifestWithModelClassAndHashes(
                 "sha-two",
-                "dev.sbs.skyblockdata.model.Item", "ccc",
+                "api.simplified.skyblock.model.Item", "ccc",
                 "com.example.GhostModel", "ddd"
             )
         );
@@ -294,7 +294,7 @@ class AssetPollerTest {
         // Only the resolvable FQCN makes it through; the ghost is logged and skipped.
         assertThat(
             this.refreshTrigger.lastTargets(),
-            contains(dev.sbs.skyblockdata.model.Item.class)
+            contains(api.simplified.skyblock.model.Item.class)
         );
     }
 
@@ -414,7 +414,7 @@ class AssetPollerTest {
                   "path": "data/v1/items/items.json",
                   "category": "items",
                   "table_name": "item",
-                  "model_class": "dev.sbs.skyblockdata.model.Item",
+                  "model_class": "api.simplified.skyblock.model.Item",
                   "content_sha256": "%s",
                   "bytes": 10,
                   "has_extra": false
@@ -423,7 +423,7 @@ class AssetPollerTest {
                   "path": "data/v1/mobs/mobs.json",
                   "category": "mobs",
                   "table_name": "mob",
-                  "model_class": "dev.sbs.skyblockdata.model.MobType",
+                  "model_class": "api.simplified.skyblock.model.MobType",
                   "content_sha256": "%s",
                   "bytes": 20,
                   "has_extra": false

@@ -1,5 +1,11 @@
 package dev.sbs.data.write;
 
+import api.simplified.github.exception.GitHubApiException;
+import api.simplified.github.request.PutContentRequest;
+import api.simplified.github.response.GitHubContentEnvelope;
+import api.simplified.github.response.GitHubPutResponse;
+import api.simplified.skyblock.contract.SkyBlockDataContract;
+import api.simplified.skyblock.model.Event;
 import com.hazelcast.collection.IQueue;
 import com.hazelcast.config.Config;
 import com.hazelcast.config.JoinConfig;
@@ -8,14 +14,8 @@ import com.hazelcast.core.Hazelcast;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
 import dev.sbs.data.DataApi;
-import dev.sbs.skyblockdata.contract.SkyBlockDataContract;
-import api.simplified.github.exception.GitHubApiException;
-import api.simplified.github.request.PutContentRequest;
-import api.simplified.github.response.GitHubContentEnvelope;
-import api.simplified.github.response.GitHubPutResponse;
 import dev.sbs.data.persistence.RemoteSkyBlockFactory;
 import dev.sbs.data.persistence.WritableRemoteJsonSource;
-import dev.sbs.skyblockdata.model.ZodiacEvent;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.persistence.JpaModel;
@@ -61,7 +61,7 @@ class WriteQueueConsumerTest {
 
     private HazelcastInstance hazelcast;
     private StubFactory factory;
-    private RecordingSource<ZodiacEvent> recordingSource;
+    private RecordingSource<Event> recordingSource;
 
     @BeforeEach
     void setUp() {
@@ -80,9 +80,9 @@ class WriteQueueConsumerTest {
         join.getTcpIpConfig().setEnabled(false);
 
         this.hazelcast = Hazelcast.newHazelcastInstance(config);
-        this.recordingSource = new RecordingSource<>(ZodiacEvent.class);
+        this.recordingSource = new RecordingSource<>(Event.class);
         this.factory = new StubFactory();
-        this.factory.register(ZodiacEvent.class, this.recordingSource);
+        this.factory.register(Event.class, this.recordingSource);
     }
 
     @AfterEach
@@ -96,8 +96,8 @@ class WriteQueueConsumerTest {
     void drainUpsert() throws Exception {
         WriteQueueConsumer consumer = newConsumer();
 
-        ZodiacEvent event = newEvent("YEAR_OF_THE_SEAL", "Year of the Seal", 414);
-        WriteRequest request = WriteRequest.upsert(ZodiacEvent.class, event, DataApi.getGson(), "skyblock-data");
+        Event event = newEvent("YEAR_OF_THE_SEAL", "Year of the Seal", "seal");
+        WriteRequest request = WriteRequest.upsert(Event.class, event, DataApi.getGson(), "skyblock-data");
 
         IQueue<WriteRequest> queue = this.hazelcast.getQueue(WriteQueueConsumer.QUEUE_NAME);
         queue.put(request);
@@ -107,7 +107,7 @@ class WriteQueueConsumerTest {
         consumer.stop();
 
         assertThat(this.recordingSource.bufferedMutations, hasSize(1));
-        BufferedMutation<ZodiacEvent> mutation = this.recordingSource.bufferedMutations.getFirst();
+        BufferedMutation<Event> mutation = this.recordingSource.bufferedMutations.getFirst();
         assertThat(mutation.getOperation(), equalTo(WriteRequest.Operation.UPSERT));
         assertThat(mutation.getEntity().getId(), equalTo("YEAR_OF_THE_SEAL"));
         assertThat(mutation.getRequestId(), equalTo(request.getRequestId()));
@@ -118,8 +118,8 @@ class WriteQueueConsumerTest {
     void drainDelete() throws Exception {
         WriteQueueConsumer consumer = newConsumer();
 
-        ZodiacEvent event = newEvent("YEAR_OF_THE_WHALE", "Year of the Whale", 413);
-        WriteRequest request = WriteRequest.delete(ZodiacEvent.class, event, DataApi.getGson(), "skyblock-data");
+        Event event = newEvent("YEAR_OF_THE_WHALE", "Year of the Whale", "whale");
+        WriteRequest request = WriteRequest.delete(Event.class, event, DataApi.getGson(), "skyblock-data");
 
         IQueue<WriteRequest> queue = this.hazelcast.getQueue(WriteQueueConsumer.QUEUE_NAME);
         queue.put(request);
@@ -137,8 +137,8 @@ class WriteQueueConsumerTest {
     void deadLetterPastCap() {
         WriteQueueConsumer consumer = newConsumer();
 
-        ZodiacEvent event = newEvent("YEAR_OF_THE_DOLPHIN", "Year of the Dolphin", 415);
-        WriteRequest request = WriteRequest.upsert(ZodiacEvent.class, event, DataApi.getGson(), "skyblock-data");
+        Event event = newEvent("YEAR_OF_THE_DOLPHIN", "Year of the Dolphin", "dolphin");
+        WriteRequest request = WriteRequest.upsert(Event.class, event, DataApi.getGson(), "skyblock-data");
         RetryEnvelope envelope = RetryEnvelope.forRetry(request, 10, Instant.now());
 
         consumer.scheduleRetry(envelope);
@@ -153,8 +153,8 @@ class WriteQueueConsumerTest {
     void retryWithinCap() throws Exception {
         WriteQueueConsumer consumer = newConsumer();
 
-        ZodiacEvent event = newEvent("YEAR_OF_THE_OCTOPUS", "Year of the Octopus", 416);
-        WriteRequest request = WriteRequest.upsert(ZodiacEvent.class, event, DataApi.getGson(), "skyblock-data");
+        Event event = newEvent("YEAR_OF_THE_OCTOPUS", "Year of the Octopus", "octopus");
+        WriteRequest request = WriteRequest.upsert(Event.class, event, DataApi.getGson(), "skyblock-data");
         // Set readyAt in the past so the retry is immediately eligible on the next drain scan.
         RetryEnvelope envelope = RetryEnvelope.forRetry(request, 1, Instant.now().minusSeconds(1));
 
@@ -185,8 +185,8 @@ class WriteQueueConsumerTest {
     void retryImapRestartDurability() throws Exception {
         // Put an entry directly into the IMap WITHOUT going through scheduleRetry,
         // simulating a restart where the previous process's entry is still in the map.
-        ZodiacEvent event = newEvent("YEAR_OF_THE_SEAL", "Year of the Seal", 414);
-        WriteRequest request = WriteRequest.upsert(ZodiacEvent.class, event, DataApi.getGson(), "skyblock-data");
+        Event event = newEvent("YEAR_OF_THE_SEAL", "Year of the Seal", "seal");
+        WriteRequest request = WriteRequest.upsert(Event.class, event, DataApi.getGson(), "skyblock-data");
         RetryEnvelope envelope = RetryEnvelope.forRetry(request, 2, Instant.now().minusSeconds(1));
 
         IMap<UUID, RetryEnvelope> retryMap = this.hazelcast.getMap(WriteQueueConsumer.RETRY_MAP_NAME);
@@ -208,13 +208,13 @@ class WriteQueueConsumerTest {
     @Test
     @DisplayName("WriteRequest for an unregistered type is skipped without stopping the drain loop")
     void unknownTypeSkipped() throws Exception {
-        // Clear the factory so ZodiacEvent is unregistered.
+        // Clear the factory so Event is unregistered.
         this.factory.clear();
 
         WriteQueueConsumer consumer = newConsumer();
 
-        ZodiacEvent event = newEvent("YEAR_OF_THE_SEAL", "Year of the Seal", 414);
-        WriteRequest skipped = WriteRequest.upsert(ZodiacEvent.class, event, DataApi.getGson(), "skyblock-data");
+        Event event = newEvent("YEAR_OF_THE_SEAL", "Year of the Seal", "seal");
+        WriteRequest skipped = WriteRequest.upsert(Event.class, event, DataApi.getGson(), "skyblock-data");
 
         IQueue<WriteRequest> queue = this.hazelcast.getQueue(WriteQueueConsumer.QUEUE_NAME);
         queue.put(skipped);
@@ -235,17 +235,17 @@ class WriteQueueConsumerTest {
         return new WriteQueueConsumer(this.hazelcast, this.factory, new WriteMetrics(new SimpleMeterRegistry()), 1L, 3, true);
     }
 
-    private static @NotNull ZodiacEvent newEvent(@NotNull String id, @NotNull String name, int releaseYear) {
-        ZodiacEvent event = new ZodiacEvent();
+    private static @NotNull Event newEvent(@NotNull String id, @NotNull String name, @NotNull String description) {
+        Event event = new Event();
         setField(event, "id", id);
         setField(event, "name", name);
-        setField(event, "releaseYear", releaseYear);
+        setField(event, "description", description);
         return event;
     }
 
     private static void setField(@NotNull Object target, @NotNull String fieldName, Object value) {
         try {
-            java.lang.reflect.Field field = ZodiacEvent.class.getDeclaredField(fieldName);
+            java.lang.reflect.Field field = Event.class.getDeclaredField(fieldName);
             field.setAccessible(true);
             field.set(target, value);
         } catch (Exception ex) {
@@ -292,7 +292,7 @@ class WriteQueueConsumerTest {
 
     }
 
-    private static final class EmptySkyBlockFactory extends dev.sbs.skyblockdata.SkyBlockFactory {
+    private static final class EmptySkyBlockFactory extends api.simplified.skyblock.SkyBlockFactory {
 
         @Override
         public @NotNull ConcurrentList<Class<JpaModel>> getModels() {

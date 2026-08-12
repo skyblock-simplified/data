@@ -1,14 +1,14 @@
 package dev.sbs.data.persistence;
 
-import com.google.gson.Gson;
-import dev.sbs.data.DataApi;
-import dev.sbs.skyblockdata.contract.SkyBlockDataContract;
 import api.simplified.github.exception.GitHubApiException;
 import api.simplified.github.request.PutContentRequest;
 import api.simplified.github.response.GitHubContentEnvelope;
 import api.simplified.github.response.GitHubPutResponse;
+import api.simplified.skyblock.contract.SkyBlockDataContract;
+import api.simplified.skyblock.model.Event;
+import com.google.gson.Gson;
+import dev.sbs.data.DataApi;
 import dev.sbs.data.write.WriteMetrics;
-import dev.sbs.skyblockdata.model.ZodiacEvent;
 import dev.simplified.client.exception.PreconditionFailedException;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
@@ -68,7 +68,7 @@ class WritableRemoteJsonSourceTest {
 
     private static final @NotNull Gson GSON = DataApi.getGson();
     private static final @NotNull String SOURCE_ID = "skyblock-data";
-    private static final @NotNull String FILE_PATH = "data/v1/world/zodiac_events.json";
+    private static final @NotNull String FILE_PATH = "data/v1/world/events.json";
     private static final @NotNull String INITIAL_BLOB_SHA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     private static final @NotNull String NEW_BLOB_SHA = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
     private static final @NotNull String NEW_COMMIT_SHA = "cccccccccccccccccccccccccccccccccccccccc";
@@ -89,7 +89,7 @@ class WritableRemoteJsonSourceTest {
     @Test
     @DisplayName("commitBatch on an empty buffer returns empty() and does not touch the contract")
     void commitBatchEmpty() {
-        WritableRemoteJsonSource<ZodiacEvent> source = newSource(initialFile(List.of()));
+        WritableRemoteJsonSource<Event> source = newSource(initialFile(List.of()));
 
         WritableRemoteJsonSource.CommitBatchResult result = source.commitBatch();
 
@@ -102,10 +102,10 @@ class WritableRemoteJsonSourceTest {
     @Test
     @DisplayName("upsert of a new entity issues one PUT with the appended JSON and returns success")
     void upsertNewEntityAppends() {
-        ZodiacEvent existing = event("YEAR_OF_THE_SEAL", "Year of the Seal", 414);
-        WritableRemoteJsonSource<ZodiacEvent> source = newSource(initialFile(List.of(existing)));
+        Event existing = event("YEAR_OF_THE_SEAL", "Year of the Seal", "seal");
+        WritableRemoteJsonSource<Event> source = newSource(initialFile(List.of(existing)));
 
-        ZodiacEvent fresh = event("YEAR_OF_THE_DOLPHIN", "Year of the Dolphin", 415);
+        Event fresh = event("YEAR_OF_THE_DOLPHIN", "Year of the Dolphin", "dolphin");
         source.upsert(fresh);
 
         WritableRemoteJsonSource.CommitBatchResult result = source.commitBatch();
@@ -117,10 +117,10 @@ class WritableRemoteJsonSourceTest {
 
         PutContentRequest body = this.contract.getLastPutBody();
         assertThat(body.getSha(), equalTo(INITIAL_BLOB_SHA));
-        assertThat(body.getMessage(), containsString("Update ZodiacEvent: 1 mutation"));
+        assertThat(body.getMessage(), containsString("Update Event: 1 mutation"));
         assertThat(body.getBranch(), equalTo("master"));
 
-        ConcurrentList<ZodiacEvent> written = decodeBody(body.getContent());
+        ConcurrentList<Event> written = decodeBody(body.getContent());
         assertThat(written, hasSize(2));
         assertThat(written.getFirst().getId(), equalTo("YEAR_OF_THE_SEAL"));
         assertThat(written.get(1).getId(), equalTo("YEAR_OF_THE_DOLPHIN"));
@@ -129,37 +129,37 @@ class WritableRemoteJsonSourceTest {
     @Test
     @DisplayName("upsert of an existing entity replaces it in place")
     void upsertReplacesExisting() {
-        ZodiacEvent a = event("YEAR_OF_THE_SEAL", "Year of the Seal", 414);
-        ZodiacEvent b = event("YEAR_OF_THE_WHALE", "Year of the Whale", 413);
-        WritableRemoteJsonSource<ZodiacEvent> source = newSource(initialFile(List.of(a, b)));
+        Event a = event("YEAR_OF_THE_SEAL", "Year of the Seal", "seal");
+        Event b = event("YEAR_OF_THE_WHALE", "Year of the Whale", "whale");
+        WritableRemoteJsonSource<Event> source = newSource(initialFile(List.of(a, b)));
 
-        ZodiacEvent updated = event("YEAR_OF_THE_SEAL", "Year of the Seal (updated)", 415);
+        Event updated = event("YEAR_OF_THE_SEAL", "Year of the Seal (updated)", "seal updated");
         source.upsert(updated);
 
         WritableRemoteJsonSource.CommitBatchResult result = source.commitBatch();
 
         assertThat(result.isSuccess(), is(true));
-        ConcurrentList<ZodiacEvent> written = decodeBody(this.contract.getLastPutBody().getContent());
+        ConcurrentList<Event> written = decodeBody(this.contract.getLastPutBody().getContent());
         assertThat(written, hasSize(2));
         assertThat(written.getFirst().getId(), equalTo("YEAR_OF_THE_SEAL"));
         assertThat(written.getFirst().getName(), equalTo("Year of the Seal (updated)"));
-        assertThat(written.getFirst().getReleaseYear(), equalTo(415));
+        assertThat(written.getFirst().getDescription(), equalTo("seal updated"));
         assertThat(written.get(1).getId(), equalTo("YEAR_OF_THE_WHALE"));
     }
 
     @Test
     @DisplayName("delete removes the matching entity and PUTs the shortened list")
     void deleteRemovesEntity() {
-        ZodiacEvent a = event("YEAR_OF_THE_SEAL", "Year of the Seal", 414);
-        ZodiacEvent b = event("YEAR_OF_THE_WHALE", "Year of the Whale", 413);
-        WritableRemoteJsonSource<ZodiacEvent> source = newSource(initialFile(List.of(a, b)));
+        Event a = event("YEAR_OF_THE_SEAL", "Year of the Seal", "seal");
+        Event b = event("YEAR_OF_THE_WHALE", "Year of the Whale", "whale");
+        WritableRemoteJsonSource<Event> source = newSource(initialFile(List.of(a, b)));
 
         source.delete(a);
 
         WritableRemoteJsonSource.CommitBatchResult result = source.commitBatch();
 
         assertThat(result.isSuccess(), is(true));
-        ConcurrentList<ZodiacEvent> written = decodeBody(this.contract.getLastPutBody().getContent());
+        ConcurrentList<Event> written = decodeBody(this.contract.getLastPutBody().getContent());
         assertThat(written, hasSize(1));
         assertThat(written.getFirst().getId(), equalTo("YEAR_OF_THE_WHALE"));
     }
@@ -167,15 +167,15 @@ class WritableRemoteJsonSourceTest {
     @Test
     @DisplayName("412 Precondition Failed retries with a fresh blob SHA up to the configured cap")
     void preconditionRetry() {
-        ZodiacEvent existing = event("YEAR_OF_THE_SEAL", "Year of the Seal", 414);
+        Event existing = event("YEAR_OF_THE_SEAL", "Year of the Seal", "seal");
         this.contract.queueInitialFile(encodeBody(List.of(existing)), INITIAL_BLOB_SHA);
         this.contract.queueInitialFile(encodeBody(List.of(existing)), NEW_BLOB_SHA);
         // First put returns 412, second put succeeds.
         this.contract.queuePutBehavior(StubWriteContract.PutOutcome.PRECONDITION_FAILED);
         this.contract.queuePutBehavior(StubWriteContract.PutOutcome.SUCCESS);
 
-        WritableRemoteJsonSource<ZodiacEvent> source = newSource(/*queueUnusedInitial=*/ false);
-        source.upsert(event("YEAR_OF_THE_DOLPHIN", "Year of the Dolphin", 415));
+        WritableRemoteJsonSource<Event> source = newSource(/*queueUnusedInitial=*/ false);
+        source.upsert(event("YEAR_OF_THE_DOLPHIN", "Year of the Dolphin", "dolphin"));
 
         WritableRemoteJsonSource.CommitBatchResult result = source.commitBatch();
 
@@ -189,7 +189,7 @@ class WritableRemoteJsonSourceTest {
     @Test
     @DisplayName("Exhausting 412 retries escalates the buffered mutations back to the caller")
     void preconditionExhaustedEscalates() {
-        ZodiacEvent existing = event("YEAR_OF_THE_SEAL", "Year of the Seal", 414);
+        Event existing = event("YEAR_OF_THE_SEAL", "Year of the Seal", "seal");
         // Queue 4 metadata responses (initial + 3 retries), all PUTs return 412.
         for (int i = 0; i < 4; i++)
             this.contract.queueInitialFile(encodeBody(List.of(existing)), INITIAL_BLOB_SHA + i);
@@ -197,8 +197,8 @@ class WritableRemoteJsonSourceTest {
         for (int i = 0; i < 4; i++)
             this.contract.queuePutBehavior(StubWriteContract.PutOutcome.PRECONDITION_FAILED);
 
-        WritableRemoteJsonSource<ZodiacEvent> source = newSource(/*queueUnusedInitial=*/ false);
-        source.upsert(event("YEAR_OF_THE_DOLPHIN", "Year of the Dolphin", 415));
+        WritableRemoteJsonSource<Event> source = newSource(/*queueUnusedInitial=*/ false);
+        source.upsert(event("YEAR_OF_THE_DOLPHIN", "Year of the Dolphin", "dolphin"));
 
         WritableRemoteJsonSource.CommitBatchResult result = source.commitBatch();
 
@@ -213,12 +213,12 @@ class WritableRemoteJsonSourceTest {
     @Test
     @DisplayName("Non-412 GitHubApiException from PUT escalates mutations without retrying")
     void nonPreconditionFailureEscalates() {
-        ZodiacEvent existing = event("YEAR_OF_THE_SEAL", "Year of the Seal", 414);
+        Event existing = event("YEAR_OF_THE_SEAL", "Year of the Seal", "seal");
         this.contract.queueInitialFile(encodeBody(List.of(existing)), INITIAL_BLOB_SHA);
         this.contract.queuePutBehavior(StubWriteContract.PutOutcome.GENERIC_ERROR);
 
-        WritableRemoteJsonSource<ZodiacEvent> source = newSource(/*queueUnusedInitial=*/ false);
-        source.upsert(event("YEAR_OF_THE_DOLPHIN", "Year of the Dolphin", 415));
+        WritableRemoteJsonSource<Event> source = newSource(/*queueUnusedInitial=*/ false);
+        source.upsert(event("YEAR_OF_THE_DOLPHIN", "Year of the Dolphin", "dolphin"));
 
         WritableRemoteJsonSource.CommitBatchResult result = source.commitBatch();
 
@@ -230,12 +230,12 @@ class WritableRemoteJsonSourceTest {
     @Test
     @DisplayName("load() delegates verbatim to the injected delegate source")
     void loadDelegates() {
-        ZodiacEvent event = event("YEAR_OF_THE_SEAL", "Year of the Seal", 414);
+        Event event = event("YEAR_OF_THE_SEAL", "Year of the Seal", "seal");
         this.delegate.stubResult = Concurrent.newList(event);
 
-        WritableRemoteJsonSource<ZodiacEvent> source = newSource(initialFile(List.of()));
+        WritableRemoteJsonSource<Event> source = newSource(initialFile(List.of()));
 
-        ConcurrentList<ZodiacEvent> result = source.load(null);
+        ConcurrentList<Event> result = source.load(null);
 
         assertThat(result, hasSize(1));
         assertThat(result.getFirst().getId(), equalTo("YEAR_OF_THE_SEAL"));
@@ -245,23 +245,23 @@ class WritableRemoteJsonSourceTest {
     @Test
     @DisplayName("upsert throws JpaException when the entity has a null @Id value")
     void upsertNullIdThrows() {
-        WritableRemoteJsonSource<ZodiacEvent> source = newSource(initialFile(List.of()));
+        WritableRemoteJsonSource<Event> source = newSource(initialFile(List.of()));
 
-        ZodiacEvent bad = new ZodiacEvent();
+        Event bad = new Event();
         // Clear the default empty-string id via reflection so the accessor returns null.
         setField(bad, "id", null);
 
         assertThrows(JpaException.class, () -> source.upsert(bad));
     }
 
-    // --- Phase 6b.1 stageBatch() tests --- //
+    // --- stageBatch() tests --- //
 
     @Test
     @DisplayName("stageBatch on an empty buffer returns StagedBatch.empty()")
     void stageBatchEmpty() {
-        WritableRemoteJsonSource<ZodiacEvent> source = newStagingSource();
+        WritableRemoteJsonSource<Event> source = newStagingSource();
 
-        dev.sbs.data.write.StagedBatch<ZodiacEvent> staged = source.stageBatch();
+        dev.sbs.data.write.StagedBatch<Event> staged = source.stageBatch();
 
         assertThat(staged.isEmpty(), is(true));
         assertThat(staged.getFileSnapshots().size(), equalTo(0));
@@ -270,19 +270,19 @@ class WritableRemoteJsonSourceTest {
     @Test
     @DisplayName("stageBatch on a single-file source produces one file snapshot with appended upsert")
     void stageBatchSingleFileAppend() {
-        ZodiacEvent existing = event("YEAR_OF_THE_SEAL", "Year of the Seal", 414);
+        Event existing = event("YEAR_OF_THE_SEAL", "Year of the Seal", "seal");
         this.fileFetcher.put(FILE_PATH, GSON.toJson(List.of(existing)));
 
-        WritableRemoteJsonSource<ZodiacEvent> source = newStagingSource();
-        source.upsert(event("YEAR_OF_THE_DOLPHIN", "Year of the Dolphin", 415));
+        WritableRemoteJsonSource<Event> source = newStagingSource();
+        source.upsert(event("YEAR_OF_THE_DOLPHIN", "Year of the Dolphin", "dolphin"));
 
-        dev.sbs.data.write.StagedBatch<ZodiacEvent> staged = source.stageBatch();
+        dev.sbs.data.write.StagedBatch<Event> staged = source.stageBatch();
 
         assertThat(staged.isEmpty(), is(false));
         assertThat(staged.getFileSnapshots().size(), equalTo(1));
         assertThat(staged.getMutationCount(), equalTo(1));
 
-        ConcurrentList<ZodiacEvent> mutatedPrimary = staged.getFileSnapshots().get(FILE_PATH);
+        ConcurrentList<Event> mutatedPrimary = staged.getFileSnapshots().get(FILE_PATH);
         assertThat(mutatedPrimary, hasSize(2));
         assertThat(mutatedPrimary.getFirst().getId(), equalTo("YEAR_OF_THE_SEAL"));
         assertThat(mutatedPrimary.get(1).getId(), equalTo("YEAR_OF_THE_DOLPHIN"));
@@ -293,24 +293,24 @@ class WritableRemoteJsonSourceTest {
     void stageBatchRoutesUpsertToExtras() {
         this.indexProvider.hasExtra = true;
 
-        ZodiacEvent inPrimary = event("YEAR_OF_THE_SEAL", "Year of the Seal", 414);
-        ZodiacEvent inExtras = event("YEAR_OF_THE_WHALE", "Year of the Whale (corrected)", 413);
+        Event inPrimary = event("YEAR_OF_THE_SEAL", "Year of the Seal", "seal");
+        Event inExtras = event("YEAR_OF_THE_WHALE", "Year of the Whale (corrected)", "whale");
         this.fileFetcher.put(FILE_PATH, GSON.toJson(List.of(inPrimary)));
         this.fileFetcher.put(this.indexProvider.extraPath, GSON.toJson(List.of(inExtras)));
 
-        WritableRemoteJsonSource<ZodiacEvent> source = newStagingSource();
-        // Upsert the whale with a new year - it should stay in the extras file.
-        source.upsert(event("YEAR_OF_THE_WHALE", "Year of the Whale (corrected)", 499));
+        WritableRemoteJsonSource<Event> source = newStagingSource();
+        // Upsert the whale with a new description - it should stay in the extras file.
+        source.upsert(event("YEAR_OF_THE_WHALE", "Year of the Whale (corrected)", "whale v2"));
 
-        dev.sbs.data.write.StagedBatch<ZodiacEvent> staged = source.stageBatch();
+        dev.sbs.data.write.StagedBatch<Event> staged = source.stageBatch();
 
         assertThat(staged.getFileSnapshots().size(), equalTo(1));
         assertThat(staged.getFileSnapshots().containsKey(this.indexProvider.extraPath), is(true));
         assertThat(staged.getFileSnapshots().containsKey(FILE_PATH), is(false));
 
-        ConcurrentList<ZodiacEvent> mutatedExtra = staged.getFileSnapshots().get(this.indexProvider.extraPath);
+        ConcurrentList<Event> mutatedExtra = staged.getFileSnapshots().get(this.indexProvider.extraPath);
         assertThat(mutatedExtra, hasSize(1));
-        assertThat(mutatedExtra.getFirst().getReleaseYear(), equalTo(499));
+        assertThat(mutatedExtra.getFirst().getDescription(), equalTo("whale v2"));
     }
 
     @Test
@@ -318,22 +318,22 @@ class WritableRemoteJsonSourceTest {
     void stageBatchRoutesNewIdToPrimary() {
         this.indexProvider.hasExtra = true;
 
-        ZodiacEvent inPrimary = event("YEAR_OF_THE_SEAL", "Year of the Seal", 414);
-        ZodiacEvent inExtras = event("YEAR_OF_THE_WHALE", "Year of the Whale", 413);
+        Event inPrimary = event("YEAR_OF_THE_SEAL", "Year of the Seal", "seal");
+        Event inExtras = event("YEAR_OF_THE_WHALE", "Year of the Whale", "whale");
         this.fileFetcher.put(FILE_PATH, GSON.toJson(List.of(inPrimary)));
         this.fileFetcher.put(this.indexProvider.extraPath, GSON.toJson(List.of(inExtras)));
 
-        WritableRemoteJsonSource<ZodiacEvent> source = newStagingSource();
+        WritableRemoteJsonSource<Event> source = newStagingSource();
         // Brand-new id - should land in the primary file by default.
-        source.upsert(event("YEAR_OF_THE_DOLPHIN", "Year of the Dolphin", 415));
+        source.upsert(event("YEAR_OF_THE_DOLPHIN", "Year of the Dolphin", "dolphin"));
 
-        dev.sbs.data.write.StagedBatch<ZodiacEvent> staged = source.stageBatch();
+        dev.sbs.data.write.StagedBatch<Event> staged = source.stageBatch();
 
         assertThat(staged.getFileSnapshots().size(), equalTo(1));
         assertThat(staged.getFileSnapshots().containsKey(FILE_PATH), is(true));
         assertThat(staged.getFileSnapshots().containsKey(this.indexProvider.extraPath), is(false));
 
-        ConcurrentList<ZodiacEvent> mutatedPrimary = staged.getFileSnapshots().get(FILE_PATH);
+        ConcurrentList<Event> mutatedPrimary = staged.getFileSnapshots().get(FILE_PATH);
         assertThat(mutatedPrimary, hasSize(2));
         assertThat(mutatedPrimary.get(1).getId(), equalTo("YEAR_OF_THE_DOLPHIN"));
     }
@@ -343,20 +343,20 @@ class WritableRemoteJsonSourceTest {
     void stageBatchRoutesDeleteToOwningFile() {
         this.indexProvider.hasExtra = true;
 
-        ZodiacEvent inPrimary = event("YEAR_OF_THE_SEAL", "Year of the Seal", 414);
-        ZodiacEvent inExtras = event("YEAR_OF_THE_WHALE", "Year of the Whale", 413);
+        Event inPrimary = event("YEAR_OF_THE_SEAL", "Year of the Seal", "seal");
+        Event inExtras = event("YEAR_OF_THE_WHALE", "Year of the Whale", "whale");
         this.fileFetcher.put(FILE_PATH, GSON.toJson(List.of(inPrimary)));
         this.fileFetcher.put(this.indexProvider.extraPath, GSON.toJson(List.of(inExtras)));
 
-        WritableRemoteJsonSource<ZodiacEvent> source = newStagingSource();
-        source.delete(event("YEAR_OF_THE_WHALE", "Year of the Whale", 413));
+        WritableRemoteJsonSource<Event> source = newStagingSource();
+        source.delete(event("YEAR_OF_THE_WHALE", "Year of the Whale", "whale"));
 
-        dev.sbs.data.write.StagedBatch<ZodiacEvent> staged = source.stageBatch();
+        dev.sbs.data.write.StagedBatch<Event> staged = source.stageBatch();
 
         assertThat(staged.getFileSnapshots().size(), equalTo(1));
         assertThat(staged.getFileSnapshots().containsKey(this.indexProvider.extraPath), is(true));
 
-        ConcurrentList<ZodiacEvent> mutatedExtra = staged.getFileSnapshots().get(this.indexProvider.extraPath);
+        ConcurrentList<Event> mutatedExtra = staged.getFileSnapshots().get(this.indexProvider.extraPath);
         assertThat(mutatedExtra, hasSize(0));
     }
 
@@ -366,25 +366,25 @@ class WritableRemoteJsonSourceTest {
         this.indexProvider.hasExtra = true;
 
         // Same id in both files with different state - extras is the correction.
-        ZodiacEvent upstream = event("YEAR_OF_THE_SEAL", "Year of the Seal", 414);
-        ZodiacEvent correction = event("YEAR_OF_THE_SEAL", "Year of the Seal (corrected)", 499);
+        Event upstream = event("YEAR_OF_THE_SEAL", "Year of the Seal", "seal");
+        Event correction = event("YEAR_OF_THE_SEAL", "Year of the Seal (corrected)", "seal fix");
         this.fileFetcher.put(FILE_PATH, GSON.toJson(List.of(upstream)));
         this.fileFetcher.put(this.indexProvider.extraPath, GSON.toJson(List.of(correction)));
 
-        WritableRemoteJsonSource<ZodiacEvent> source = newStagingSource();
-        source.upsert(event("YEAR_OF_THE_SEAL", "Year of the Seal (re-corrected)", 500));
+        WritableRemoteJsonSource<Event> source = newStagingSource();
+        source.upsert(event("YEAR_OF_THE_SEAL", "Year of the Seal (re-corrected)", "seal refix"));
 
-        dev.sbs.data.write.StagedBatch<ZodiacEvent> staged = source.stageBatch();
+        dev.sbs.data.write.StagedBatch<Event> staged = source.stageBatch();
 
         // Only the extras file should be dirty - primary is untouched.
         assertThat(staged.getFileSnapshots().size(), equalTo(1));
         assertThat(staged.getFileSnapshots().containsKey(this.indexProvider.extraPath), is(true));
         assertThat(staged.getFileSnapshots().containsKey(FILE_PATH), is(false));
 
-        ConcurrentList<ZodiacEvent> mutatedExtra = staged.getFileSnapshots().get(this.indexProvider.extraPath);
+        ConcurrentList<Event> mutatedExtra = staged.getFileSnapshots().get(this.indexProvider.extraPath);
         assertThat(mutatedExtra, hasSize(1));
         assertThat(mutatedExtra.getFirst().getName(), equalTo("Year of the Seal (re-corrected)"));
-        assertThat(mutatedExtra.getFirst().getReleaseYear(), equalTo(500));
+        assertThat(mutatedExtra.getFirst().getDescription(), equalTo("seal refix"));
     }
 
     @Test
@@ -392,24 +392,24 @@ class WritableRemoteJsonSourceTest {
     void stageBatchDeleteConflictRemovesFromBothFiles() {
         this.indexProvider.hasExtra = true;
 
-        ZodiacEvent upstream = event("YEAR_OF_THE_SEAL", "Year of the Seal", 414);
-        ZodiacEvent correction = event("YEAR_OF_THE_SEAL", "Year of the Seal (corrected)", 499);
-        ZodiacEvent otherPrimary = event("YEAR_OF_THE_WHALE", "Year of the Whale", 413);
+        Event upstream = event("YEAR_OF_THE_SEAL", "Year of the Seal", "seal");
+        Event correction = event("YEAR_OF_THE_SEAL", "Year of the Seal (corrected)", "seal fix");
+        Event otherPrimary = event("YEAR_OF_THE_WHALE", "Year of the Whale", "whale");
         this.fileFetcher.put(FILE_PATH, GSON.toJson(List.of(upstream, otherPrimary)));
         this.fileFetcher.put(this.indexProvider.extraPath, GSON.toJson(List.of(correction)));
 
-        WritableRemoteJsonSource<ZodiacEvent> source = newStagingSource();
+        WritableRemoteJsonSource<Event> source = newStagingSource();
         source.delete(correction);
 
-        dev.sbs.data.write.StagedBatch<ZodiacEvent> staged = source.stageBatch();
+        dev.sbs.data.write.StagedBatch<Event> staged = source.stageBatch();
 
         // BOTH files should be dirty - the stale primary copy was removed.
         assertThat(staged.getFileSnapshots().size(), equalTo(2));
         assertThat(staged.getFileSnapshots().containsKey(FILE_PATH), is(true));
         assertThat(staged.getFileSnapshots().containsKey(this.indexProvider.extraPath), is(true));
 
-        ConcurrentList<ZodiacEvent> mutatedPrimary = staged.getFileSnapshots().get(FILE_PATH);
-        ConcurrentList<ZodiacEvent> mutatedExtra = staged.getFileSnapshots().get(this.indexProvider.extraPath);
+        ConcurrentList<Event> mutatedPrimary = staged.getFileSnapshots().get(FILE_PATH);
+        ConcurrentList<Event> mutatedExtra = staged.getFileSnapshots().get(this.indexProvider.extraPath);
         assertThat(mutatedPrimary, hasSize(1));
         assertThat(mutatedPrimary.getFirst().getId(), equalTo("YEAR_OF_THE_WHALE"));
         assertThat(mutatedExtra, hasSize(0));
@@ -418,14 +418,14 @@ class WritableRemoteJsonSourceTest {
     @Test
     @DisplayName("stageBatch produces no dirty files when every upsert is byte-identical to current state")
     void stageBatchSuppressesNoOp() {
-        ZodiacEvent existing = event("YEAR_OF_THE_SEAL", "Year of the Seal", 414);
+        Event existing = event("YEAR_OF_THE_SEAL", "Year of the Seal", "seal");
         this.fileFetcher.put(FILE_PATH, GSON.toJson(List.of(existing)));
 
-        WritableRemoteJsonSource<ZodiacEvent> source = newStagingSource();
+        WritableRemoteJsonSource<Event> source = newStagingSource();
         // Upsert the identical entity - post-mutation serialization should match.
-        source.upsert(event("YEAR_OF_THE_SEAL", "Year of the Seal", 414));
+        source.upsert(event("YEAR_OF_THE_SEAL", "Year of the Seal", "seal"));
 
-        dev.sbs.data.write.StagedBatch<ZodiacEvent> staged = source.stageBatch();
+        dev.sbs.data.write.StagedBatch<Event> staged = source.stageBatch();
 
         assertThat(staged.isEmpty(), is(true));
     }
@@ -434,7 +434,7 @@ class WritableRemoteJsonSourceTest {
      * Creates a source configured for the stageBatch tests - no write contract
      * calls, fileFetcher pre-populated with per-test file content.
      */
-    private @NotNull WritableRemoteJsonSource<ZodiacEvent> newStagingSource() {
+    private @NotNull WritableRemoteJsonSource<Event> newStagingSource() {
         return new WritableRemoteJsonSource<>(
             this.delegate,
             this.contract,
@@ -442,7 +442,7 @@ class WritableRemoteJsonSourceTest {
             this.indexProvider,
             GSON,
             SOURCE_ID,
-            ZodiacEvent.class,
+            Event.class,
             3,
             new WriteMetrics(new SimpleMeterRegistry())
         );
@@ -450,7 +450,7 @@ class WritableRemoteJsonSourceTest {
 
     // --- helper plumbing below --- //
 
-    private @NotNull WritableRemoteJsonSource<ZodiacEvent> newSource(byte[] initialBody) {
+    private @NotNull WritableRemoteJsonSource<Event> newSource(byte[] initialBody) {
         this.contract.queueInitialFile(initialBody, INITIAL_BLOB_SHA);
         // Default PUT outcome for happy-path tests.
         this.contract.queuePutBehavior(StubWriteContract.PutOutcome.SUCCESS);
@@ -461,13 +461,13 @@ class WritableRemoteJsonSourceTest {
             this.indexProvider,
             GSON,
             SOURCE_ID,
-            ZodiacEvent.class,
+            Event.class,
             3,
             new WriteMetrics(new SimpleMeterRegistry())
         );
     }
 
-    private @NotNull WritableRemoteJsonSource<ZodiacEvent> newSource(boolean queueUnusedInitial) {
+    private @NotNull WritableRemoteJsonSource<Event> newSource(boolean queueUnusedInitial) {
         if (queueUnusedInitial) {
             this.contract.queueInitialFile(encodeBody(List.of()), INITIAL_BLOB_SHA);
             this.contract.queuePutBehavior(StubWriteContract.PutOutcome.SUCCESS);
@@ -479,23 +479,23 @@ class WritableRemoteJsonSourceTest {
             this.indexProvider,
             GSON,
             SOURCE_ID,
-            ZodiacEvent.class,
+            Event.class,
             3,
             new WriteMetrics(new SimpleMeterRegistry())
         );
     }
 
-    private static @NotNull ZodiacEvent event(String id, String name, int releaseYear) {
-        ZodiacEvent e = new ZodiacEvent();
+    private static @NotNull Event event(String id, String name, String description) {
+        Event e = new Event();
         setField(e, "id", id);
         setField(e, "name", name);
-        setField(e, "releaseYear", releaseYear);
+        setField(e, "description", description);
         return e;
     }
 
     private static void setField(Object target, String fieldName, Object value) {
         try {
-            java.lang.reflect.Field field = ZodiacEvent.class.getDeclaredField(fieldName);
+            java.lang.reflect.Field field = Event.class.getDeclaredField(fieldName);
             field.setAccessible(true);
             field.set(target, value);
         } catch (Exception ex) {
@@ -503,33 +503,33 @@ class WritableRemoteJsonSourceTest {
         }
     }
 
-    private static byte[] encodeBody(List<ZodiacEvent> events) {
+    private static byte[] encodeBody(List<Event> events) {
         String json = GSON.toJson(events);
         return json.getBytes(StandardCharsets.UTF_8);
     }
 
-    private static byte[] initialFile(List<ZodiacEvent> events) {
+    private static byte[] initialFile(List<Event> events) {
         return encodeBody(events);
     }
 
-    private static @NotNull ConcurrentList<ZodiacEvent> decodeBody(String base64Content) {
+    private static @NotNull ConcurrentList<Event> decodeBody(String base64Content) {
         byte[] decoded = Base64.getDecoder().decode(base64Content);
         String json = new String(decoded, StandardCharsets.UTF_8);
-        ZodiacEvent[] arr = GSON.fromJson(json, ZodiacEvent[].class);
-        ConcurrentList<ZodiacEvent> list = Concurrent.newList();
+        Event[] arr = GSON.fromJson(json, Event[].class);
+        ConcurrentList<Event> list = Concurrent.newList();
         list.addAll(Arrays.asList(arr));
         return list;
     }
 
     // --- stubs --- //
 
-    private static final class RecordingDelegate implements Source<ZodiacEvent> {
+    private static final class RecordingDelegate implements Source<Event> {
 
-        @NotNull ConcurrentList<ZodiacEvent> stubResult = Concurrent.newList();
+        @NotNull ConcurrentList<Event> stubResult = Concurrent.newList();
         int callCount = 0;
 
         @Override
-        public @NotNull ConcurrentList<ZodiacEvent> load(@NotNull JpaRepository<ZodiacEvent> repository) {
+        public @NotNull ConcurrentList<Event> load(@NotNull JpaRepository<Event> repository) {
             this.callCount++;
             return this.stubResult;
         }
@@ -564,7 +564,7 @@ class WritableRemoteJsonSourceTest {
     private static final class StubIndexProvider implements IndexProvider {
 
         boolean hasExtra = false;
-        @NotNull String extraPath = "data/v1/world/zodiac_events_extra.json";
+        @NotNull String extraPath = "data/v1/world/events_extra.json";
 
         @Override
         public @NotNull ManifestIndex loadIndex() {
@@ -580,8 +580,8 @@ class WritableRemoteJsonSourceTest {
                 + "\"files\":[{"
                 + "\"path\":\"" + FILE_PATH + "\","
                 + "\"category\":\"world\","
-                + "\"table_name\":\"zodiac_events\","
-                + "\"model_class\":\"" + ZodiacEvent.class.getName() + "\","
+                + "\"table_name\":\"events\","
+                + "\"model_class\":\"" + Event.class.getName() + "\","
                 + "\"content_sha256\":\"deadbeef\","
                 + "\"bytes\":1024"
                 + extraBlock

@@ -1,9 +1,10 @@
 package dev.sbs.data.persistence;
 
-import dev.sbs.skyblockdata.SkyBlockData;
-import dev.sbs.skyblockdata.model.*;
+import api.simplified.skyblock.SkyBlockData;
+import api.simplified.skyblock.model.*;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.persistence.JpaCacheProvider;
+import dev.simplified.persistence.JpaSession;
 import dev.simplified.persistence.Repository;
 import lib.minecraft.text.ChatColor;
 import org.junit.jupiter.api.AfterAll;
@@ -12,6 +13,9 @@ import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
+
+import java.io.Serializable;
+import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
@@ -25,7 +29,7 @@ import static org.hamcrest.Matchers.*;
  * <p>This test class lives in {@code data}'s test source set rather than
  * {@code minecraft-api}'s because {@code data} has no {@code TestLifecycleListener}
  * auto-connect, leaving its test JVM as a clean slate for {@link #beforeAll()} to register the
- * sole SkyBlock {@link dev.simplified.persistence.JpaSession} via
+ * sole SkyBlock {@link JpaSession} via
  * {@code SkyBlockData.connect(JpaCacheProvider, GsonSettings)} with
  * {@link JpaCacheProvider#HAZELCAST_EMBEDDED}.</p>
  *
@@ -34,17 +38,17 @@ import static org.hamcrest.Matchers.*;
  * intentionally distinct from the production 5701 so the in-process member cannot accidentally
  * join a locally-running production cluster).</p>
  *
- * <p>Test cases mirror {@link dev.sbs.skyblockdata.model.JpaModelTest} from {@code minecraft-api}
+ * <p>Test cases mirror {@code JpaModelTest} from {@code skyblock}
  * to exercise the production SkyBlock JSON model corpus end to end against real Hazelcast.</p>
  *
  * <p>Phase 2d (lazy streaming JpaRepository rewrite) re-enables this test. The Phase 2a
  * crash root-caused to {@code JpaRepository.stream()} forcing
  * {@code setCacheable(true).getResultList()} on every query, which routed results through
  * Hibernate's query results region as {@code QueryResultsCacheImpl$CacheItem}
- * (a {@link java.io.Serializable} envelope). Phase 2d switched {@code JpaRepository.stream()}
+ * (a {@link Serializable} envelope). Phase 2d switched {@code JpaRepository.stream()}
  * to lazy {@code Query.getResultStream()} and disabled {@code hibernate.cache.use_query_cache}
  * for both Hazelcast providers - the query results region is no longer created or written to,
- * so the {@code ObjectOutputStream} graph walk that crashed on {@link java.util.Optional},
+ * so the {@code ObjectOutputStream} graph walk that crashed on {@link Optional},
  * {@code Stat$Substitute}, and friends is never entered. The L2 entity cache still populates
  * as a side effect of streaming hydration, so per-id lookups remain cache-fast.</p>
  */
@@ -142,9 +146,9 @@ public class JpaModelHazelcastTest {
 
     @Test
     @Order(1)
-    void zodiacEvent_loadsFromJson() {
-        Repository<ZodiacEvent> repo = SkyBlockData.getRepository(ZodiacEvent.class);
-        ConcurrentList<ZodiacEvent> all = repo.findAll();
+    void event_loadsFromJson() {
+        Repository<Event> repo = SkyBlockData.getRepository(Event.class);
+        ConcurrentList<Event> all = repo.findAll();
         assertThat(all, not(empty()));
     }
 

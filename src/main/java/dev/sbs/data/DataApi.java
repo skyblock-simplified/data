@@ -15,7 +15,7 @@ import org.jetbrains.annotations.NotNull;
  * poller, and the write-path schedulers. {@link GsonSettings#defaults()} walks the
  * {@code ServiceLoader} SPI and picks up contributors from every {@code *-api} jar on the
  * classpath automatically, so this locator never needs to register adapters manually.
- * Persistence access flows through {@code dev.sbs.skyblockdata.SkyBlockData} directly - this
+ * Persistence access flows through {@code api.simplified.skyblock.SkyBlockData} directly - this
  * locator does not own it.
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)

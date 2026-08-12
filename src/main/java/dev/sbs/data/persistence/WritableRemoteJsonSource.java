@@ -1,12 +1,12 @@
 package dev.sbs.data.persistence;
 
-import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
-import dev.sbs.skyblockdata.contract.SkyBlockDataContract;
 import api.simplified.github.exception.GitHubApiException;
 import api.simplified.github.request.PutContentRequest;
 import api.simplified.github.response.GitHubContentEnvelope;
 import api.simplified.github.response.GitHubPutResponse;
+import api.simplified.skyblock.contract.SkyBlockDataContract;
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 import dev.sbs.data.write.BufferedMutation;
 import dev.sbs.data.write.StagedBatch;
 import dev.sbs.data.write.WriteMetrics;

@@ -4,15 +4,15 @@ import api.simplified.github.GitHubAuth;
 import api.simplified.github.GitHubContentsContract;
 import api.simplified.github.GitHubContentsWriteContract;
 import api.simplified.github.exception.GitHubApiException;
-import com.google.gson.Gson;
+import api.simplified.skyblock.contract.SkyBlockDataContract;
+import api.simplified.skyblock.contract.SkyBlockDataService;
+import api.simplified.skyblock.contract.SkyBlockGitDataContract;
+import api.simplified.skyblock.source.GitHubFileFetcher;
+import api.simplified.skyblock.source.GitHubIndexProvider;
 import dev.sbs.data.DataApi;
-import dev.sbs.skyblockdata.contract.SkyBlockDataContract;
-import dev.sbs.skyblockdata.contract.SkyBlockDataService;
-import dev.sbs.skyblockdata.contract.SkyBlockGitDataContract;
-import dev.sbs.skyblockdata.source.GitHubFileFetcher;
-import dev.sbs.skyblockdata.source.GitHubIndexProvider;
 import dev.simplified.client.Client;
 import dev.simplified.client.ClientConfig;
+import dev.simplified.gson.GsonSettings;
 import dev.simplified.persistence.source.FileFetcher;
 import dev.simplified.persistence.source.IndexProvider;
 import lombok.extern.log4j.Log4j2;
@@ -118,8 +118,8 @@ public class GitHubConfig {
      */
     @Bean
     public @NotNull Client<GitHubContentsContract> gitHubContentsClient(@NotNull GitHubAuth gitHubAuth) {
-        Gson gson = DataApi.getGson();
-        ClientConfig<GitHubContentsContract> options = ClientConfig.builder(GitHubContentsContract.class, gson)
+        GsonSettings gsonSettings = DataApi.getGsonSettings();
+        ClientConfig<GitHubContentsContract> options = ClientConfig.builder(GitHubContentsContract.class, gsonSettings)
             .withHeader("Accept", GITHUB_RAW_ACCEPT)
             .withHeader("X-GitHub-Api-Version", GITHUB_API_VERSION)
             .withDynamicHeader("Authorization", gitHubAuth)
@@ -140,8 +140,8 @@ public class GitHubConfig {
      */
     @Bean
     public @NotNull Client<GitHubContentsWriteContract> gitHubContentsWriteClient(@NotNull GitHubAuth gitHubAuth) {
-        Gson gson = DataApi.getGson();
-        ClientConfig<GitHubContentsWriteContract> options = ClientConfig.builder(GitHubContentsWriteContract.class, gson)
+        GsonSettings gsonSettings = DataApi.getGsonSettings();
+        ClientConfig<GitHubContentsWriteContract> options = ClientConfig.builder(GitHubContentsWriteContract.class, gsonSettings)
             .withHeader("Accept", GITHUB_JSON_ACCEPT)
             .withHeader("X-GitHub-Api-Version", GITHUB_API_VERSION)
             .withDynamicHeader("Authorization", gitHubAuth)
@@ -202,8 +202,8 @@ public class GitHubConfig {
      */
     @Bean
     public @NotNull Client<SkyBlockGitDataContract> skyBlockGitDataClient(@NotNull GitHubAuth gitHubAuth) {
-        Gson gson = DataApi.getGson();
-        ClientConfig<SkyBlockGitDataContract> options = ClientConfig.builder(SkyBlockGitDataContract.class, gson)
+        GsonSettings gsonSettings = DataApi.getGsonSettings();
+        ClientConfig<SkyBlockGitDataContract> options = ClientConfig.builder(SkyBlockGitDataContract.class, gsonSettings)
             .withHeader("Accept", GITHUB_JSON_ACCEPT)
             .withHeader("X-GitHub-Api-Version", GITHUB_API_VERSION)
             .withDynamicHeader("Authorization", gitHubAuth)
