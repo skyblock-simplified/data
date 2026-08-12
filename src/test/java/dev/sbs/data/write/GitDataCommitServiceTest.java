@@ -1,8 +1,5 @@
 package dev.sbs.data.write;
 
-import com.google.gson.Gson;
-import dev.sbs.data.DataApi;
-import dev.sbs.skyblockdata.contract.SkyBlockGitDataContract;
 import api.simplified.github.exception.GitHubApiException;
 import api.simplified.github.request.CreateBlobRequest;
 import api.simplified.github.request.CreateCommitRequest;
@@ -12,7 +9,10 @@ import api.simplified.github.response.GitBlob;
 import api.simplified.github.response.GitCommit;
 import api.simplified.github.response.GitRef;
 import api.simplified.github.response.GitTree;
-import dev.sbs.skyblockdata.model.ZodiacEvent;
+import api.simplified.skyblock.contract.SkyBlockGitDataContract;
+import api.simplified.skyblock.model.Event;
+import com.google.gson.Gson;
+import dev.sbs.data.DataApi;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
@@ -88,7 +88,7 @@ class GitDataCommitServiceTest {
         this.contract.queueHappyPath();
 
         GitDataCommitService service = new GitDataCommitService(this.contract, new WriteMetrics(new SimpleMeterRegistry()), 3);
-        BatchCommitRequest request = buildRequest("data/v1/world/zodiac_events.json", "[{\"id\":\"A\"}]", 1);
+        BatchCommitRequest request = buildRequest("data/v1/world/events.json", "[{\"id\":\"A\"}]", 1);
 
         GitDataCommitResult result = service.commit(request);
 
@@ -117,7 +117,7 @@ class GitDataCommitServiceTest {
 
         GitDataCommitService service = new GitDataCommitService(this.contract, new WriteMetrics(new SimpleMeterRegistry()), 3);
         BatchCommitRequest request = BatchCommitRequest.builder()
-            .add(newStagedBatch("data/v1/world/zodiac_events.json", "[1]", 2), entities -> "[1]")
+            .add(newStagedBatch("data/v1/world/events.json", "[1]", 2), entities -> "[1]")
             .add(newStagedBatch("data/v1/items/items.json", "[2,3]", 3), entities -> "[2,3]")
             .build();
 
@@ -136,7 +136,7 @@ class GitDataCommitServiceTest {
 
         GitDataCommitService service = new GitDataCommitService(this.contract, new WriteMetrics(new SimpleMeterRegistry()), 3);
         BatchCommitRequest request = BatchCommitRequest.builder()
-            .add(newStagedBatch("data/v1/world/zodiac_events.json", "[1]", 2), entities -> "[1]")
+            .add(newStagedBatch("data/v1/world/events.json", "[1]", 2), entities -> "[1]")
             .add(newStagedBatch("data/v1/items/items.json", "[2,3,4]", 5), entities -> "[2,3,4]")
             .build();
 
@@ -156,7 +156,7 @@ class GitDataCommitServiceTest {
         this.contract.queueUpdateRefOutcome(StubContract.UpdateRefOutcome.SUCCESS);
 
         GitDataCommitService service = new GitDataCommitService(this.contract, new WriteMetrics(new SimpleMeterRegistry()), 3);
-        BatchCommitRequest request = buildRequest("data/v1/world/zodiac_events.json", "[1]", 1);
+        BatchCommitRequest request = buildRequest("data/v1/world/events.json", "[1]", 1);
 
         GitDataCommitResult result = service.commit(request);
 
@@ -174,7 +174,7 @@ class GitDataCommitServiceTest {
         }
 
         GitDataCommitService service = new GitDataCommitService(this.contract, new WriteMetrics(new SimpleMeterRegistry()), 3);
-        BatchCommitRequest request = buildRequest("data/v1/world/zodiac_events.json", "[1]", 1);
+        BatchCommitRequest request = buildRequest("data/v1/world/events.json", "[1]", 1);
 
         GitDataCommitResult result = service.commit(request);
 
@@ -190,7 +190,7 @@ class GitDataCommitServiceTest {
         this.contract.queueBlobOutcome(StubContract.BlobOutcome.INTERNAL_ERROR);
 
         GitDataCommitService service = new GitDataCommitService(this.contract, new WriteMetrics(new SimpleMeterRegistry()), 3);
-        BatchCommitRequest request = buildRequest("data/v1/world/zodiac_events.json", "[1]", 1);
+        BatchCommitRequest request = buildRequest("data/v1/world/events.json", "[1]", 1);
 
         GitDataCommitResult result = service.commit(request);
 
@@ -204,34 +204,36 @@ class GitDataCommitServiceTest {
     // --- helpers --- //
 
     private static @NotNull BatchCommitRequest buildRequest(@NotNull String path, @NotNull String body, int mutationCount) {
-        StagedBatch<ZodiacEvent> staged = newStagedBatch(path, body, mutationCount);
+        StagedBatch<Event> staged = newStagedBatch(path, body, mutationCount);
         return BatchCommitRequest.builder()
             .add(staged, entities -> body)
             .build();
     }
 
-    private static @NotNull StagedBatch<ZodiacEvent> newStagedBatch(
+    private static @NotNull StagedBatch<Event> newStagedBatch(
         @NotNull String path,
         @NotNull String body,
         int mutationCount
     ) {
-        ConcurrentMap<String, ConcurrentList<ZodiacEvent>> fileSnapshots = Concurrent.newMap();
+        ConcurrentMap<String, ConcurrentList<Event>> fileSnapshots = Concurrent.newMap();
         fileSnapshots.put(path, Concurrent.newList());
 
-        ConcurrentList<BufferedMutation<ZodiacEvent>> mutations = Concurrent.newList();
+        ConcurrentList<BufferedMutation<Event>> mutations = Concurrent.newList();
         for (int i = 0; i < mutationCount; i++) {
             mutations.add(new BufferedMutation<>(
                 dev.simplified.persistence.source.WriteRequest.Operation.UPSERT,
-                new ZodiacEvent(),
+                new Event(),
                 UUID.randomUUID(),
                 Instant.now()
             ));
         }
 
-        return new StagedBatch<>(ZodiacEvent.class, fileSnapshots, mutations, mutationCount);
+        return new StagedBatch<>(Event.class, fileSnapshots, mutations, mutationCount);
     }
 
-    /** Hamcrest helper: matcher that accepts an instance of the given class or null. */
+    /**
+     * Hamcrest helper: matcher that accepts an instance of the given class or null.
+     */
     private static <T> org.hamcrest.Matcher<Object> instanceOfOrNull(@NotNull Class<T> type) {
         return new org.hamcrest.BaseMatcher<>() {
             @Override

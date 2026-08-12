@@ -1,16 +1,16 @@
 package dev.sbs.data.persistence;
 
-import com.google.gson.Gson;
-import dev.sbs.data.DataApi;
-import dev.sbs.skyblockdata.contract.SkyBlockDataContract;
 import api.simplified.github.exception.GitHubApiException;
 import api.simplified.github.request.PutContentRequest;
 import api.simplified.github.response.GitHubContentEnvelope;
 import api.simplified.github.response.GitHubPutResponse;
+import api.simplified.skyblock.SkyBlockFactory;
+import api.simplified.skyblock.contract.SkyBlockDataContract;
+import api.simplified.skyblock.model.Accessory;
+import api.simplified.skyblock.model.Item;
+import com.google.gson.Gson;
+import dev.sbs.data.DataApi;
 import dev.sbs.data.write.WriteMetrics;
-import dev.sbs.skyblockdata.SkyBlockFactory;
-import dev.sbs.skyblockdata.model.Accessory;
-import dev.sbs.skyblockdata.model.Item;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.persistence.JpaModel;
@@ -89,7 +89,7 @@ final class RemoteSkyBlockFactoryTest {
     @Test
     @SuppressWarnings("rawtypes")
     void wiresEveryModelWithDiskOverlaySourceWrappingRemoteJsonSource() {
-        SkyBlockFactory delegate = new dev.sbs.skyblockdata.SkyBlockFactory();
+        SkyBlockFactory delegate = new api.simplified.skyblock.SkyBlockFactory();
         RemoteSkyBlockFactory factory = newFactory(delegate);
 
         assertThat(factory.getModels().size(), equalTo(delegate.getModels().size()));
@@ -123,7 +123,7 @@ final class RemoteSkyBlockFactoryTest {
 
     @Test
     void keyedMapContainsKnownModelClasses() {
-        SkyBlockFactory delegate = new dev.sbs.skyblockdata.SkyBlockFactory();
+        SkyBlockFactory delegate = new api.simplified.skyblock.SkyBlockFactory();
         RemoteSkyBlockFactory factory = newFactory(delegate);
 
         assertThat(factory.getSources(), hasKey(Item.class));

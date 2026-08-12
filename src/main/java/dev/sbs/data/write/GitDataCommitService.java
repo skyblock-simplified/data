@@ -1,6 +1,5 @@
 package dev.sbs.data.write;
 
-import dev.sbs.skyblockdata.contract.SkyBlockGitDataContract;
 import api.simplified.github.exception.GitHubApiException;
 import api.simplified.github.request.CreateBlobRequest;
 import api.simplified.github.request.CreateCommitRequest;
@@ -9,6 +8,7 @@ import api.simplified.github.request.UpdateRefRequest;
 import api.simplified.github.response.GitBlob;
 import api.simplified.github.response.GitCommit;
 import api.simplified.github.response.GitRef;
+import api.simplified.skyblock.contract.SkyBlockGitDataContract;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import lombok.extern.log4j.Log4j2;

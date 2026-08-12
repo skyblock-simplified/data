@@ -1,11 +1,10 @@
 package dev.sbs.data.config;
 
+import api.simplified.skyblock.SkyBlockFactory;
+import api.simplified.skyblock.contract.SkyBlockDataContract;
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.core.HazelcastInstance;
 import dev.sbs.data.DataApi;
-import dev.sbs.skyblockdata.SkyBlockFactory;
-import dev.sbs.skyblockdata.contract.SkyBlockDataContract;
-import dev.sbs.skyblockdata.contract.SkyBlockDataContract;
 import dev.sbs.data.persistence.RemoteSkyBlockFactory;
 import dev.sbs.data.poller.LastResponseAccessor;
 import dev.sbs.data.poller.RefreshTrigger;
@@ -45,7 +44,7 @@ import java.nio.file.Path;
  * <ul>
  *   <li>{@code skyBlockSession} - the SkyBlock entity session backed by
  *       {@link JpaCacheProvider#HAZELCAST_CLIENT}, scoped to
- *       {@code dev.sbs.skyblockdata.model}. Phase 5 wires its
+ *       {@code api.simplified.skyblock.model}. Phase 5 wires its
  *       {@link RepositoryFactory} to a {@link RemoteSkyBlockFactory} so every repository
  *       loads its data from the {@code skyblock-data} GitHub repo via
  *       {@link dev.simplified.persistence.source.RemoteJsonSource} with an optional
@@ -59,7 +58,7 @@ import java.nio.file.Path;
  * </ul>
  *
  * <p>The split is deliberate: {@code SkyBlockFactory} anchors its classpath scan at
- * {@code dev.sbs.skyblockdata.model.Item.class}, which does NOT prefix-match
+ * {@code api.simplified.skyblock.model.Item.class}, which does NOT prefix-match
  * the sibling {@code dev.simplified.persistence.asset} package, so the Phase 4a asset
  * entities are invisible to the SkyBlock session. Rather than coupling {@code minecraft-api}
  * to the asset schema (which is a Phase 5 concern), Phase 4c carries a dedicated second
@@ -120,7 +119,7 @@ public class PersistenceConfig {
         @Value("${skyblock.data.overlay.path:skyblock-data-overlay}") @NotNull String overlayBasePath,
         @Value("${skyblock.data.github.write-412-immediate-retries:3}") int max412ImmediateRetries
     ) {
-        SkyBlockFactory skyBlockFactory = new dev.sbs.skyblockdata.SkyBlockFactory();
+        SkyBlockFactory skyBlockFactory = new api.simplified.skyblock.SkyBlockFactory();
         return new RemoteSkyBlockFactory(
             GitHubConfig.SOURCE_ID,
             skyBlockFactory,

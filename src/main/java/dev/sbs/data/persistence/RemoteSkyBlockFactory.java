@@ -1,8 +1,8 @@
 package dev.sbs.data.persistence;
 
+import api.simplified.skyblock.SkyBlockFactory;
+import api.simplified.skyblock.contract.SkyBlockDataContract;
 import com.google.gson.Gson;
-import dev.sbs.skyblockdata.SkyBlockFactory;
-import dev.sbs.skyblockdata.contract.SkyBlockDataContract;
 import dev.sbs.data.write.WriteMetrics;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;

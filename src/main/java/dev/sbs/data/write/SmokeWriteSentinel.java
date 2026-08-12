@@ -1,9 +1,10 @@
 package dev.sbs.data.write;
 
+import api.simplified.skyblock.model.Event;
 import com.hazelcast.collection.IQueue;
 import com.hazelcast.core.HazelcastInstance;
 import dev.sbs.data.DataApi;
-import dev.sbs.skyblockdata.model.ZodiacEvent;
+import dev.sbs.data.persistence.WritableRemoteJsonSource;
 import dev.simplified.persistence.source.WriteRequest;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
@@ -20,13 +21,13 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Phase 6b gate-7 smoke harness bean. Only active when the Spring profile
- * {@code smoke} is set via {@code SPRING_PROFILES_ACTIVE=smoke}.
+ * Smoke harness bean, active only when the Spring profile {@code smoke} is
+ * set via {@code SPRING_PROFILES_ACTIVE=smoke}.
  *
  * <p>On context refresh this bean emits a two-phase self-cleaning smoke run:
  * <ol>
  *   <li><b>Phase 1 ({@code @PostConstruct}):</b> puts an UPSERT
- *       {@link WriteRequest} for a sentinel {@link ZodiacEvent} with fixed
+ *       {@link WriteRequest} for a sentinel {@link Event} with fixed
  *       id {@link #SENTINEL_ID} onto the Hazelcast
  *       {@link WriteQueueConsumer#QUEUE_NAME} queue. The
  *       {@link WriteBatchScheduler}'s next tick (default 10s) stages and
@@ -43,9 +44,9 @@ import java.util.concurrent.TimeUnit;
  * path (Hazelcast IQueue → WriteQueueConsumer → WritableRemoteJsonSource
  * buffer → WriteBatchScheduler → GitDataCommitService → GitHub). Phase 1
  * proves upsert + commit creation; phase 2 proves delete + file cleanup.
- * The Phase 5.5 {@code AssetPoller} detects both commits within one poll
+ * The {@code AssetPoller} detects both commits within one poll
  * cycle ({@code ~60s} each), firing a targeted refresh on the
- * {@link ZodiacEvent} model class both times. The profile should NEVER be
+ * {@link Event} model class both times. The profile should NEVER be
  * active in production.
  *
  * <p>The cleanup delay ({@link #CLEANUP_DELAY}) must be long enough for
@@ -67,12 +68,12 @@ import java.util.concurrent.TimeUnit;
  * smoke harness is opt-in and operators who kill the container during a
  * run accept the cleanup burden.
  *
- * <p>Idempotency: the sentinel's {@link ZodiacEvent#getName() name} field
+ * <p>Idempotency: the sentinel's {@link Event#getName() name} field
  * embeds a per-boot {@link Instant#now()} timestamp so the serialized JSON
- * body differs from every previous run's body. This sidesteps the Phase 6c
- * gate-7 debugging finding: if a previous smoke run was never reverted from
+ * body differs from every previous run's body. This sidesteps the no-op
+ * trap: if a previous smoke run was never reverted from
  * {@code skyblock-data} master and this harness emitted byte-identical
- * sentinel state, {@link dev.sbs.data.persistence.WritableRemoteJsonSource#stageBatch()}
+ * sentinel state, {@link WritableRemoteJsonSource#stageBatch()}
  * would correctly detect the no-op and suppress the upsert commit, making
  * the gate appear stuck. With a timestamp-varying name field every run
  * produces a distinguishable upsert commit even when stacking against a
@@ -83,11 +84,15 @@ import java.util.concurrent.TimeUnit;
 @Log4j2
 public class SmokeWriteSentinel {
 
-    /** Sentinel entity id - chosen to be unmistakably a test artifact. */
+    /**
+     * Sentinel entity id - chosen to be unmistakably a test artifact.
+     */
     public static final @NotNull String SENTINEL_ID = "SBS_WRITE_SMOKE_TEST";
 
-    /** Sentinel entity {@code releaseYear} - fixed value, not used for idempotency. */
-    static final int SENTINEL_RELEASE_YEAR = 999;
+    /**
+     * Sentinel entity {@code description} - fixed value, not used for idempotency.
+     */
+    static final @NotNull String SENTINEL_DESCRIPTION = "Write-path smoke sentinel";
 
     /**
      * Prefix of the sentinel entity {@code name}. The full name is this prefix
@@ -134,7 +139,7 @@ public class SmokeWriteSentinel {
             this.enqueue(upsert);
 
             log.warn(
-                "SMOKE PROFILE ACTIVE: emitted UPSERT sentinel WriteRequest {} (ZodiacEvent id='{}' name='{}') - "
+                "SMOKE PROFILE ACTIVE: emitted UPSERT sentinel WriteRequest {} (Event id='{}' name='{}') - "
                     + "expected path: WriteQueueConsumer drains within ~1s, WriteBatchScheduler commits within ~10s. "
                     + "Phase 2 cleanup DELETE scheduled for {} from now.",
                 upsert.getRequestId(), SENTINEL_ID, sentinelName, CLEANUP_DELAY
@@ -162,7 +167,7 @@ public class SmokeWriteSentinel {
             this.enqueue(delete);
 
             log.warn(
-                "SMOKE PROFILE ACTIVE: emitted DELETE cleanup WriteRequest {} (ZodiacEvent id='{}') - "
+                "SMOKE PROFILE ACTIVE: emitted DELETE cleanup WriteRequest {} (Event id='{}') - "
                     + "expected path: WriteBatchScheduler commits within ~10s, returning skyblock-data master to pre-run state.",
                 delete.getRequestId(), SENTINEL_ID
             );
@@ -187,22 +192,22 @@ public class SmokeWriteSentinel {
     }
 
     private @NotNull WriteRequest buildUpsertRequest(@NotNull String sentinelName) {
-        ZodiacEvent sentinel = new ZodiacEvent();
+        Event sentinel = new Event();
         setField(sentinel, "id", SENTINEL_ID);
         setField(sentinel, "name", sentinelName);
-        setField(sentinel, "releaseYear", SENTINEL_RELEASE_YEAR);
-        return WriteRequest.upsert(ZodiacEvent.class, sentinel, DataApi.getGson(), "skyblock-data");
+        setField(sentinel, "description", SENTINEL_DESCRIPTION);
+        return WriteRequest.upsert(Event.class, sentinel, DataApi.getGson(), "skyblock-data");
     }
 
     private @NotNull WriteRequest buildDeleteRequest() {
-        // Name and releaseYear are irrelevant for DELETE dispatch (the
+        // Name and description are irrelevant for DELETE dispatch (the
         // source matches on id only), but set them for audit log readability
         // when the operator inspects the dead-letter IMap.
-        ZodiacEvent sentinel = new ZodiacEvent();
+        Event sentinel = new Event();
         setField(sentinel, "id", SENTINEL_ID);
         setField(sentinel, "name", SENTINEL_NAME_PREFIX + " (cleanup)");
-        setField(sentinel, "releaseYear", SENTINEL_RELEASE_YEAR);
-        return WriteRequest.delete(ZodiacEvent.class, sentinel, DataApi.getGson(), "skyblock-data");
+        setField(sentinel, "description", SENTINEL_DESCRIPTION);
+        return WriteRequest.delete(Event.class, sentinel, DataApi.getGson(), "skyblock-data");
     }
 
     private void enqueue(@NotNull WriteRequest request) throws InterruptedException {
@@ -212,7 +217,7 @@ public class SmokeWriteSentinel {
 
     private static void setField(@NotNull Object target, @NotNull String fieldName, @NotNull Object value) {
         try {
-            Field field = ZodiacEvent.class.getDeclaredField(fieldName);
+            Field field = Event.class.getDeclaredField(fieldName);
             field.setAccessible(true);
             field.set(target, value);
         } catch (Exception ex) {

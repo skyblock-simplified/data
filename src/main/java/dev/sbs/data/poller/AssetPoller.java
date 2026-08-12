@@ -1,10 +1,10 @@
 package dev.sbs.data.poller;
 
-import com.google.gson.Gson;
-import dev.sbs.data.DataApi;
-import dev.sbs.skyblockdata.contract.SkyBlockDataContract;
 import api.simplified.github.exception.GitHubApiException;
 import api.simplified.github.response.GitHubCommit;
+import api.simplified.skyblock.contract.SkyBlockDataContract;
+import com.google.gson.Gson;
+import dev.sbs.data.DataApi;
 import dev.sbs.data.config.GitHubConfig;
 import dev.simplified.client.exception.NotModifiedException;
 import dev.simplified.client.response.Response;

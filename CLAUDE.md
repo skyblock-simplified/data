@@ -142,8 +142,10 @@ GitHub asset polling, and the skyblock-data repo integration.
     put through every retry attempt.
   - `SmokeWriteSentinel` - `@Profile("smoke")` bean that puts a single synthetic
     `WriteRequest` on startup for gate-7 end-to-end docker testing. Emits a sentinel
-    `ZodiacEvent` with id `SBS_WRITE_SMOKE_TEST` and expects the operator to revert
-    the mutation after verification.
+    `Event` with id `SBS_WRITE_SMOKE_TEST` and expects the operator to revert
+    the mutation after verification. It reaches `id`, `name` and `description`
+    reflectively by string literal, which no compiler checks and
+    `SentinelFieldsTest` does.
 
 ### Dependencies
 

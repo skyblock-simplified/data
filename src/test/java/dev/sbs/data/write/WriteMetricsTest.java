@@ -104,15 +104,15 @@ class WriteMetricsTest {
     @Test
     @DisplayName("recordDeadLetter tags the counter by entity class FQCN")
     void recordDeadLetterTagsByFqcn() {
-        this.metrics.recordDeadLetter("dev.sbs.skyblockdata.model.ZodiacEvent");
-        this.metrics.recordDeadLetter("dev.sbs.skyblockdata.model.Item");
+        this.metrics.recordDeadLetter("api.simplified.skyblock.model.Event");
+        this.metrics.recordDeadLetter("api.simplified.skyblock.model.Item");
 
         assertThat(
-            this.registry.find(WriteMetrics.METER_DEADLETTER_ADDED).tag("type", "dev.sbs.skyblockdata.model.ZodiacEvent").counter().count(),
+            this.registry.find(WriteMetrics.METER_DEADLETTER_ADDED).tag("type", "api.simplified.skyblock.model.Event").counter().count(),
             is(equalTo(1.0))
         );
         assertThat(
-            this.registry.find(WriteMetrics.METER_DEADLETTER_ADDED).tag("type", "dev.sbs.skyblockdata.model.Item").counter().count(),
+            this.registry.find(WriteMetrics.METER_DEADLETTER_ADDED).tag("type", "api.simplified.skyblock.model.Item").counter().count(),
             is(equalTo(1.0))
         );
     }
@@ -318,13 +318,17 @@ class WriteMetricsTest {
         }
     }
 
-    /** Test-only {@link JpaModel} implementation for cardinality assertions. */
+    /**
+     * Test-only {@link JpaModel} implementation for cardinality assertions.
+     */
     private static class FakeModel implements JpaModel {
         @Serial
         private static final long serialVersionUID = 1L;
     }
 
-    /** A second test-only {@link JpaModel} implementation so cardinality tests see 2 distinct types. */
+    /**
+     * A second test-only {@link JpaModel} implementation so cardinality tests see 2 distinct types.
+     */
     private static class OtherFakeModel implements JpaModel {
         @Serial
         private static final long serialVersionUID = 1L;

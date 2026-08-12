@@ -1,14 +1,17 @@
 package dev.sbs.data.write;
 
-import dev.sbs.data.DataApi;
-import dev.sbs.skyblockdata.contract.SkyBlockDataContract;
 import api.simplified.github.exception.GitHubApiException;
 import api.simplified.github.request.PutContentRequest;
 import api.simplified.github.response.GitHubContentEnvelope;
 import api.simplified.github.response.GitHubPutResponse;
+import api.simplified.skyblock.SkyBlockFactory;
+import api.simplified.skyblock.contract.SkyBlockDataContract;
+import api.simplified.skyblock.contract.SkyBlockGitDataContract;
+import api.simplified.skyblock.model.Event;
+import com.hazelcast.core.HazelcastInstance;
+import dev.sbs.data.DataApi;
 import dev.sbs.data.persistence.RemoteSkyBlockFactory;
 import dev.sbs.data.persistence.WritableRemoteJsonSource;
-import dev.sbs.skyblockdata.model.ZodiacEvent;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.persistence.JpaModel;
@@ -80,9 +83,9 @@ class WriteBatchSchedulerTest {
     @Test
     @DisplayName("tick with a successful commitBatch result does not escalate retries")
     void tickAllSuccess() {
-        RecordingSource<ZodiacEvent> source = new RecordingSource<>(ZodiacEvent.class);
+        RecordingSource<Event> source = new RecordingSource<>(Event.class);
         source.nextResult = WritableRemoteJsonSource.CommitBatchResult.success(2, "abc123");
-        this.factory.register(ZodiacEvent.class, source);
+        this.factory.register(Event.class, source);
 
         WriteBatchScheduler scheduler = new WriteBatchScheduler(this.factory, this.consumer, stubGitDataService(), this.metrics, 1L, WriteMode.CONTENTS);
         scheduler.tick();
@@ -94,11 +97,11 @@ class WriteBatchSchedulerTest {
     @Test
     @DisplayName("tick escalates every failed mutation as a retry entry with attempt=1")
     void tickEscalatesFailures() {
-        RecordingSource<ZodiacEvent> source = new RecordingSource<>(ZodiacEvent.class);
-        BufferedMutation<ZodiacEvent> m1 = newMutation(WriteRequest.Operation.UPSERT, "A");
-        BufferedMutation<ZodiacEvent> m2 = newMutation(WriteRequest.Operation.DELETE, "B");
+        RecordingSource<Event> source = new RecordingSource<>(Event.class);
+        BufferedMutation<Event> m1 = newMutation(WriteRequest.Operation.UPSERT, "A");
+        BufferedMutation<Event> m2 = newMutation(WriteRequest.Operation.DELETE, "B");
         source.nextResult = buildFailed(List.of(m1, m2));
-        this.factory.register(ZodiacEvent.class, source);
+        this.factory.register(Event.class, source);
 
         WriteBatchScheduler scheduler = new WriteBatchScheduler(this.factory, this.consumer, stubGitDataService(), this.metrics, 1L, WriteMode.CONTENTS);
         scheduler.tick();
@@ -106,7 +109,7 @@ class WriteBatchSchedulerTest {
         assertThat(this.consumer.getRetries(), hasSize(2));
         long nowMillis = Instant.now().toEpochMilli();
         for (RetryEnvelope retry : this.consumer.getRetries()) {
-            assertThat(retry.getRequest().getEntityClassName(), equalTo(ZodiacEvent.class.getName()));
+            assertThat(retry.getRequest().getEntityClassName(), equalTo(Event.class.getName()));
             assertThat(retry.getAttempt(), equalTo(1));
             // Verify that the readyAt is at least close to now + 1 minute (with some tolerance for scheduling jitter).
             long diffSeconds = (retry.getReadyAtEpochMillis() - nowMillis) / 1000L;
@@ -115,12 +118,12 @@ class WriteBatchSchedulerTest {
     }
 
     @Test
-    @DisplayName("Phase 6b.1 Gap 1: a mutation with attempt=2 escalates to attempt=3 (not 1)")
+    @DisplayName("a mutation with attempt=2 escalates to attempt=3 (not 1)")
     void tickEscalatesIncrementsAttemptCounter() {
-        RecordingSource<ZodiacEvent> source = new RecordingSource<>(ZodiacEvent.class);
+        RecordingSource<Event> source = new RecordingSource<>(Event.class);
         // Build a BufferedMutation that was already on its 2nd retry cycle.
-        ZodiacEvent event = new ZodiacEvent();
-        BufferedMutation<ZodiacEvent> priorRetry = new BufferedMutation<>(
+        Event event = new Event();
+        BufferedMutation<Event> priorRetry = new BufferedMutation<>(
             WriteRequest.Operation.UPSERT,
             event,
             UUID.randomUUID(),
@@ -128,7 +131,7 @@ class WriteBatchSchedulerTest {
             2  // attempt counter: this mutation has already failed twice
         );
         source.nextResult = buildFailed(List.of(priorRetry));
-        this.factory.register(ZodiacEvent.class, source);
+        this.factory.register(Event.class, source);
 
         WriteBatchScheduler scheduler = new WriteBatchScheduler(this.factory, this.consumer, stubGitDataService(), this.metrics, 1L, WriteMode.CONTENTS);
         scheduler.tick();
@@ -145,9 +148,9 @@ class WriteBatchSchedulerTest {
     @Test
     @DisplayName("tick with a successful source and a failed source handles each independently")
     void tickMixedResults() {
-        RecordingSource<ZodiacEvent> okSource = new RecordingSource<>(ZodiacEvent.class);
+        RecordingSource<Event> okSource = new RecordingSource<>(Event.class);
         okSource.nextResult = WritableRemoteJsonSource.CommitBatchResult.success(3, "abc");
-        this.factory.register(ZodiacEvent.class, okSource);
+        this.factory.register(Event.class, okSource);
 
         RecordingSource<OtherModel> badSource = new RecordingSource<>(OtherModel.class);
         badSource.nextResult = buildFailed(List.of(newOtherMutation()));
@@ -165,9 +168,9 @@ class WriteBatchSchedulerTest {
     @Test
     @DisplayName("flushOnShutdown commits every source but does not escalate failures")
     void flushOnShutdownDropsFailures() {
-        RecordingSource<ZodiacEvent> source = new RecordingSource<>(ZodiacEvent.class);
+        RecordingSource<Event> source = new RecordingSource<>(Event.class);
         source.nextResult = buildFailed(List.of(newMutation(WriteRequest.Operation.UPSERT, "A")));
-        this.factory.register(ZodiacEvent.class, source);
+        this.factory.register(Event.class, source);
 
         WriteBatchScheduler scheduler = new WriteBatchScheduler(this.factory, this.consumer, stubGitDataService(), this.metrics, 1L, WriteMode.CONTENTS);
         scheduler.flushOnShutdown();
@@ -180,7 +183,7 @@ class WriteBatchSchedulerTest {
     @DisplayName("source that throws from commitBatch is skipped without stopping the iteration")
     void throwingSourceSkipped() {
         ThrowingSource throwing = new ThrowingSource();
-        this.factory.register(ZodiacEvent.class, throwing);
+        this.factory.register(Event.class, throwing);
 
         RecordingSource<OtherModel> other = new RecordingSource<>(OtherModel.class);
         other.nextResult = WritableRemoteJsonSource.CommitBatchResult.success(1, "xyz");
@@ -211,9 +214,9 @@ class WriteBatchSchedulerTest {
     @Test
     @DisplayName("GIT_DATA tick stages dirty sources then calls commit() once with merged request")
     void gitDataTickMergesSources() {
-        StagingRecordingSource<ZodiacEvent> zodiac = new StagingRecordingSource<>(ZodiacEvent.class);
-        zodiac.nextStaged = newStagedBatch(ZodiacEvent.class, "data/v1/world/zodiac_events.json", 2);
-        this.factory.register(ZodiacEvent.class, zodiac);
+        StagingRecordingSource<Event> event = new StagingRecordingSource<>(Event.class);
+        event.nextStaged = newStagedBatch(Event.class, "data/v1/world/events.json", 2);
+        this.factory.register(Event.class, event);
 
         StagingRecordingSource<OtherModel> other = new StagingRecordingSource<>(OtherModel.class);
         other.nextStaged = newStagedBatch(OtherModel.class, "data/v1/other/other.json", 3);
@@ -235,9 +238,9 @@ class WriteBatchSchedulerTest {
     @Test
     @DisplayName("GIT_DATA tick escalates every mutation from every source when the commit service returns failure")
     void gitDataTickEscalatesOnFailure() {
-        StagingRecordingSource<ZodiacEvent> zodiac = new StagingRecordingSource<>(ZodiacEvent.class);
-        zodiac.nextStaged = newStagedBatch(ZodiacEvent.class, "data/v1/world/zodiac_events.json", 2);
-        this.factory.register(ZodiacEvent.class, zodiac);
+        StagingRecordingSource<Event> event = new StagingRecordingSource<>(Event.class);
+        event.nextStaged = newStagedBatch(Event.class, "data/v1/world/events.json", 2);
+        this.factory.register(Event.class, event);
 
         StagingRecordingSource<OtherModel> other = new StagingRecordingSource<>(OtherModel.class);
         other.nextStaged = newStagedBatch(OtherModel.class, "data/v1/other/other.json", 3);
@@ -250,16 +253,16 @@ class WriteBatchSchedulerTest {
         scheduler.tick();
 
         assertThat(capturing.commitCalls, hasSize(1));
-        // 2 ZodiacEvent mutations + 3 OtherModel mutations = 5 retry entries.
+        // 2 Event mutations + 3 OtherModel mutations = 5 retry entries.
         assertThat(this.consumer.getRetries(), hasSize(5));
     }
 
     @Test
     @DisplayName("GIT_DATA tick skips empty StagedBatches without invoking commit()")
     void gitDataTickSkipsEmptyStagedBatches() {
-        StagingRecordingSource<ZodiacEvent> zodiac = new StagingRecordingSource<>(ZodiacEvent.class);
-        zodiac.nextStaged = StagedBatch.empty();
-        this.factory.register(ZodiacEvent.class, zodiac);
+        StagingRecordingSource<Event> event = new StagingRecordingSource<>(Event.class);
+        event.nextStaged = StagedBatch.empty();
+        this.factory.register(Event.class, event);
 
         CapturingGitDataService capturing = new CapturingGitDataService();
         WriteBatchScheduler scheduler = new WriteBatchScheduler(this.factory, this.consumer, capturing, this.metrics, 1L, WriteMode.GIT_DATA);
@@ -272,9 +275,9 @@ class WriteBatchSchedulerTest {
     @Test
     @DisplayName("GIT_DATA flushOnShutdown drops failures instead of escalating them")
     void gitDataFlushDropsFailures() {
-        StagingRecordingSource<ZodiacEvent> zodiac = new StagingRecordingSource<>(ZodiacEvent.class);
-        zodiac.nextStaged = newStagedBatch(ZodiacEvent.class, "data/v1/world/zodiac_events.json", 2);
-        this.factory.register(ZodiacEvent.class, zodiac);
+        StagingRecordingSource<Event> event = new StagingRecordingSource<>(Event.class);
+        event.nextStaged = newStagedBatch(Event.class, "data/v1/world/events.json", 2);
+        this.factory.register(Event.class, event);
 
         CapturingGitDataService capturing = new CapturingGitDataService();
         capturing.nextResult = GitDataCommitResult.failure(new RuntimeException("simulated failure"));
@@ -305,8 +308,8 @@ class WriteBatchSchedulerTest {
         };
     }
 
-    private static @NotNull BufferedMutation<ZodiacEvent> newMutation(@NotNull WriteRequest.Operation op, @NotNull String id) {
-        ZodiacEvent event = new ZodiacEvent();
+    private static @NotNull BufferedMutation<Event> newMutation(@NotNull WriteRequest.Operation op, @NotNull String id) {
+        Event event = new Event();
         return new BufferedMutation<>(op, event, UUID.randomUUID(), Instant.now());
     }
 
@@ -344,7 +347,9 @@ class WriteBatchSchedulerTest {
         return WritableRemoteJsonSource.CommitBatchResult.failed(failures, new RuntimeException("stub failure"));
     }
 
-    /** Marker no-Id model used to drive the mixed-results test case. */
+    /**
+     * Marker no-Id model used to drive the mixed-results test case.
+     */
     @jakarta.persistence.Entity
     @jakarta.persistence.Table(name = "other_model")
     static final class OtherModel implements JpaModel {
@@ -381,13 +386,13 @@ class WriteBatchSchedulerTest {
     }
 
     /**
-     * {@link dev.sbs.skyblockdata.SkyBlockFactory} whose
+     * {@link SkyBlockFactory} whose
      * {@code getModels()} returns an empty list so {@link RemoteSkyBlockFactory}'s
      * constructor does not try to wire a source per real SkyBlock entity
      * (which would fail because the stubbed index provider + file fetcher +
      * write contract throw on every invocation).
      */
-    private static final class EmptySkyBlockFactory extends dev.sbs.skyblockdata.SkyBlockFactory {
+    private static final class EmptySkyBlockFactory extends api.simplified.skyblock.SkyBlockFactory {
 
         @Override
         public @NotNull ConcurrentList<Class<JpaModel>> getModels() {
@@ -429,10 +434,10 @@ class WriteBatchSchedulerTest {
 
     }
 
-    private static final class ThrowingSource extends RecordingSource<ZodiacEvent> {
+    private static final class ThrowingSource extends RecordingSource<Event> {
 
         ThrowingSource() {
-            super(ZodiacEvent.class);
+            super(Event.class);
         }
 
         @Override
@@ -518,7 +523,7 @@ class WriteBatchSchedulerTest {
     }
 
     /**
-     * Dynamic proxy that implements {@link com.hazelcast.core.HazelcastInstance}
+     * Dynamic proxy that implements {@link HazelcastInstance}
      * by throwing on every method call. Used by the recording consumer's
      * constructor - the tests never call any method on the Hazelcast
      * instance because they invoke {@code scheduleRetry} directly and the
@@ -588,7 +593,7 @@ class WriteBatchSchedulerTest {
     }
 
     /**
-     * Minimal {@link dev.sbs.skyblockdata.contract.SkyBlockGitDataContract}
+     * Minimal {@link SkyBlockGitDataContract}
      * stub that throws on every method. Only used by the
      * {@link #stubGitDataService()} helper to satisfy the
      * {@link GitDataCommitService} constructor parameter in legacy
@@ -596,7 +601,7 @@ class WriteBatchSchedulerTest {
      * {@link GitDataCommitService} subclass override intercepts all
      * {@link GitDataCommitService#commit} calls.
      */
-    private static final class SkyBlockGitDataContractStub implements dev.sbs.skyblockdata.contract.SkyBlockGitDataContract {
+    private static final class SkyBlockGitDataContractStub implements api.simplified.skyblock.contract.SkyBlockGitDataContract {
 
         @Override
         public api.simplified.github.response.@NotNull GitRef getRef(@NotNull String owner, @NotNull String repo, @NotNull String branch) {
