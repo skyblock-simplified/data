@@ -1,5 +1,6 @@
 package dev.sbs.data.persistence;
 
+import dev.simplified.client.exception.ErrorContext;
 import api.simplified.github.exception.GitHubApiException;
 import api.simplified.github.request.PutContentRequest;
 import api.simplified.github.response.GitHubContentEnvelope;
@@ -681,8 +682,8 @@ class WritableRemoteJsonSourceTest {
                     """.formatted(NEW_BLOB_SHA, NEW_COMMIT_SHA),
                     GitHubPutResponse.class
                 );
-                case PRECONDITION_FAILED -> throw new PreconditionFailedException("PUT /fake", fakeResponse(412, "Precondition Failed"));
-                case GENERIC_ERROR -> throw new GitHubApiException(GSON, "PUT /fake", fakeResponse(500, "Internal Server Error"));
+                case PRECONDITION_FAILED -> throw new PreconditionFailedException(ErrorContext.fromFeign(fakeResponse(412, "Precondition Failed"), new byte[0]));
+                case GENERIC_ERROR -> throw new GitHubApiException(GSON, ErrorContext.fromFeign(fakeResponse(500, "Internal Server Error"), new byte[0]));
             };
         }
 

@@ -27,8 +27,8 @@ import dev.simplified.persistence.source.WriteRequest;
 import dev.simplified.reflection.Reflection;
 import dev.simplified.reflection.accessor.FieldAccessor;
 import jakarta.persistence.Id;
-import lombok.Getter;
-import lombok.extern.log4j.Log4j2;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.Log;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -95,7 +95,7 @@ import java.util.Objects;
  * @see WriteRequest.Operation
  */
 @Getter
-@Log4j2
+@Log
 public class WritableRemoteJsonSource<T extends JpaModel> implements MutableSource<T> {
 
     /**

@@ -11,7 +11,7 @@ import dev.simplified.persistence.JpaModel;
 import dev.simplified.persistence.exception.JpaException;
 import dev.simplified.persistence.source.WriteRequest;
 import jakarta.annotation.PreDestroy;
-import lombok.extern.log4j.Log4j2;
+import dev.simplified.annotations.Log;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
@@ -89,7 +89,7 @@ import java.util.concurrent.TimeUnit;
  * @see RetryEnvelope
  */
 @Component
-@Log4j2
+@Log
 public class WriteQueueConsumer {
 
     /** The Hazelcast IQueue name declared in {@code infra/hazelcast/hazelcast.xml}. */

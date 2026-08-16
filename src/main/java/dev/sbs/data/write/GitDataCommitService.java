@@ -11,7 +11,7 @@ import api.simplified.github.response.GitRef;
 import api.simplified.skyblock.contract.SkyBlockGitDataContract;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import lombok.extern.log4j.Log4j2;
+import dev.simplified.annotations.Log;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -65,7 +65,7 @@ import java.util.Map;
  * @see SkyBlockGitDataContract
  */
 @Component
-@Log4j2
+@Log
 public class GitDataCommitService {
 
     /** The branch name targeted by the Git Data API flow. */

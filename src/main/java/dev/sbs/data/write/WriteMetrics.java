@@ -10,7 +10,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;
 import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.Timer;
-import lombok.extern.log4j.Log4j2;
+import dev.simplified.annotations.Log;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
 
@@ -80,7 +80,7 @@ import java.util.function.Supplier;
  * @see io.micrometer.core.instrument.Gauge
  */
 @Component
-@Log4j2
+@Log
 public class WriteMetrics {
 
     // --- Meter names (stable) --- //
