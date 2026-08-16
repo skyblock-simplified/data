@@ -8,7 +8,7 @@ import dev.sbs.data.persistence.WritableRemoteJsonSource;
 import dev.simplified.persistence.source.WriteRequest;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import lombok.extern.log4j.Log4j2;
+import dev.simplified.annotations.Log;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -81,7 +81,7 @@ import java.util.concurrent.TimeUnit;
  */
 @Component
 @Profile("smoke")
-@Log4j2
+@Log
 public class SmokeWriteSentinel {
 
     /**

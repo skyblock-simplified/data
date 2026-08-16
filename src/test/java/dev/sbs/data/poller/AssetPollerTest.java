@@ -1,5 +1,6 @@
 package dev.sbs.data.poller;
 
+import dev.simplified.client.exception.ErrorContext;
 import api.simplified.github.exception.GitHubApiException;
 import api.simplified.github.response.GitHubCommit;
 import api.simplified.skyblock.contract.SkyBlockDataContract;
@@ -534,7 +535,7 @@ class AssetPollerTest {
             .headers(Map.of())
             .body("{\"message\":\"" + reason + "\"}", StandardCharsets.UTF_8)
             .build();
-        return new GitHubApiException(GSON, "getLatestMasterCommit", feignResponse);
+        return new GitHubApiException(GSON, ErrorContext.fromFeign(feignResponse, new byte[0]));
     }
 
     private static @NotNull NotModifiedException buildNotModified() {
@@ -552,7 +553,7 @@ class AssetPollerTest {
             .headers(Map.of())
             .body(new byte[0])
             .build();
-        return new NotModifiedException("getLatestMasterCommit", feignResponse);
+        return new NotModifiedException(ErrorContext.fromFeign(feignResponse, new byte[0]));
     }
 
     /** Hand-rolled contract stub. */

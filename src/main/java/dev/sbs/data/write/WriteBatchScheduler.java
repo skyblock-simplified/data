@@ -11,7 +11,7 @@ import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.persistence.JpaModel;
 import dev.simplified.persistence.source.WriteRequest;
 import jakarta.annotation.PreDestroy;
-import lombok.extern.log4j.Log4j2;
+import dev.simplified.annotations.Log;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.springframework.beans.factory.annotation.Value;
@@ -73,7 +73,7 @@ import java.util.Map;
  * @see WriteMode
  */
 @Component
-@Log4j2
+@Log
 public class WriteBatchScheduler {
 
     private final @NotNull RemoteSkyBlockFactory factory;

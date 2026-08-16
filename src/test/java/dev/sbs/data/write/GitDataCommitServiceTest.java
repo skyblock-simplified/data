@@ -1,5 +1,6 @@
 package dev.sbs.data.write;
 
+import dev.simplified.client.exception.ErrorContext;
 import api.simplified.github.exception.GitHubApiException;
 import api.simplified.github.request.CreateBlobRequest;
 import api.simplified.github.request.CreateCommitRequest;
@@ -406,7 +407,7 @@ class GitDataCommitServiceTest {
                 .headers(java.util.Map.of())
                 .body("{\"message\":\"" + reason + "\",\"documentation_url\":\"\"}", StandardCharsets.UTF_8)
                 .build();
-            return new GitHubApiException(GSON, "POST /fake", response);
+            return new GitHubApiException(GSON, ErrorContext.fromFeign(response, new byte[0]));
         }
 
     }

@@ -7,15 +7,14 @@ import api.simplified.github.exception.GitHubApiException;
 import api.simplified.skyblock.contract.SkyBlockDataContract;
 import api.simplified.skyblock.contract.SkyBlockDataService;
 import api.simplified.skyblock.contract.SkyBlockGitDataContract;
-import api.simplified.skyblock.source.GitHubFileFetcher;
-import api.simplified.skyblock.source.GitHubIndexProvider;
+import api.simplified.skyblock.SkyBlockFactory;
 import dev.sbs.data.DataApi;
 import dev.simplified.client.Client;
 import dev.simplified.client.ClientConfig;
 import dev.simplified.gson.GsonSettings;
 import dev.simplified.persistence.source.FileFetcher;
 import dev.simplified.persistence.source.IndexProvider;
-import lombok.extern.log4j.Log4j2;
+import dev.simplified.annotations.Log;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -62,7 +61,7 @@ import org.springframework.context.annotation.Configuration;
  * data from starting.
  */
 @Configuration
-@Log4j2
+@Log
 public class GitHubConfig {
 
     /** The human-readable source id used in exception messages and asset state. */
@@ -229,25 +228,25 @@ public class GitHubConfig {
     }
 
     /**
-     * Registers the {@link GitHubIndexProvider} bridge bean.
+     * Registers the {@link SkyBlockFactory#indexProvider} bridge bean.
      *
      * @param skyBlockDataContract the SkyBlock-pre-bound data contract
      * @return an {@link IndexProvider} backed by the GitHub Contents API
      */
     @Bean
     public @NotNull IndexProvider gitHubIndexProvider(@NotNull SkyBlockDataContract skyBlockDataContract) {
-        return new GitHubIndexProvider(SOURCE_ID, skyBlockDataContract, DataApi.getGson());
+        return SkyBlockFactory.indexProvider(SOURCE_ID, skyBlockDataContract, DataApi.getGson());
     }
 
     /**
-     * Registers the {@link GitHubFileFetcher} bridge bean.
+     * Registers the {@link SkyBlockFactory#fileFetcher} bridge bean.
      *
      * @param skyBlockDataContract the SkyBlock-pre-bound data contract
      * @return a {@link FileFetcher} backed by the GitHub Contents API
      */
     @Bean
     public @NotNull FileFetcher gitHubFileFetcher(@NotNull SkyBlockDataContract skyBlockDataContract) {
-        return new GitHubFileFetcher(SOURCE_ID, skyBlockDataContract);
+        return SkyBlockFactory.fileFetcher(SOURCE_ID, skyBlockDataContract);
     }
 
 }

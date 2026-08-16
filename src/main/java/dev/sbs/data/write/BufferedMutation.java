@@ -2,9 +2,9 @@ package dev.sbs.data.write;
 
 import dev.simplified.persistence.JpaModel;
 import dev.simplified.persistence.source.WriteRequest;
-import lombok.AccessLevel;
-import lombok.Getter;
-import lombok.RequiredArgsConstructor;
+import dev.simplified.annotations.AccessLevel;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 
 import java.time.Instant;

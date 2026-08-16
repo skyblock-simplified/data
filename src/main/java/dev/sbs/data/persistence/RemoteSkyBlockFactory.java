@@ -15,8 +15,8 @@ import dev.simplified.persistence.source.IndexProvider;
 import dev.simplified.persistence.source.RemoteJsonSource;
 import dev.simplified.persistence.source.Source;
 import jakarta.persistence.Table;
-import lombok.Getter;
-import lombok.extern.log4j.Log4j2;
+import dev.simplified.annotations.Getter;
+import dev.simplified.annotations.Log;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -61,7 +61,7 @@ import java.util.function.Consumer;
  * @see DiskOverlaySource
  * @see WritableRemoteJsonSource
  */
-@Log4j2
+@Log
 @Getter
 public class RemoteSkyBlockFactory implements RepositoryFactory {
 

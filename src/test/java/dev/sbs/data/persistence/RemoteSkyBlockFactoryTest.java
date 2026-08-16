@@ -93,7 +93,10 @@ final class RemoteSkyBlockFactoryTest {
         RemoteSkyBlockFactory factory = newFactory(delegate);
 
         assertThat(factory.getModels().size(), equalTo(delegate.getModels().size()));
-        assertThat(factory.getModels().size(), greaterThanOrEqualTo(41));
+        // Tracks the entity set skyblock declares, which shrank when the hot-potato, pet-item
+        // and perk models were retired. The parity assertion above is the real contract; this is
+        // the floor that catches an empty or trivially small resolve.
+        assertThat(factory.getModels().size(), greaterThanOrEqualTo(34));
         assertThat(factory.getDefaultSource(), nullValue());
         assertThat(factory.getPeeks().isEmpty(), equalTo(true));
         assertThat(factory.getWritableSources().size(), equalTo(delegate.getModels().size()));

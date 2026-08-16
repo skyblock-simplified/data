@@ -6,6 +6,7 @@ import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.core.HazelcastInstance;
 import dev.sbs.data.DataApi;
 import dev.sbs.data.persistence.RemoteSkyBlockFactory;
+import api.simplified.github.GitHubContentsContract;
 import dev.sbs.data.poller.LastResponseAccessor;
 import dev.sbs.data.poller.RefreshTrigger;
 import dev.sbs.data.write.WriteMetrics;
@@ -24,7 +25,7 @@ import dev.simplified.persistence.source.IndexProvider;
 import dev.simplified.util.Logging;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
-import lombok.extern.log4j.Log4j2;
+import dev.simplified.annotations.Log;
 import org.hibernate.annotations.CacheConcurrencyStrategy;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -73,7 +74,7 @@ import java.nio.file.Path;
  * framework.
  */
 @Configuration
-@Log4j2
+@Log
 public class PersistenceConfig {
 
     /**
@@ -197,31 +198,17 @@ public class PersistenceConfig {
     }
 
     /**
-     * Unwraps the Phase 4b client's contract proxy as a stand-alone bean so that
-     * {@link dev.sbs.data.poller.AssetPoller} does not need to depend on the
-     * {@code final} {@link Client} type directly. Tests substitute a hand-rolled
-     * {@link SkyBlockDataContract} stub via the same constructor parameter.
-     *
-     * @param skyBlockDataClient the Phase 4b GitHub client wrapper
-     * @return the unwrapped {@link SkyBlockDataContract} proxy
-     */
-    @Bean
-    public @NotNull SkyBlockDataContract skyBlockDataContract(@NotNull Client<SkyBlockDataContract> skyBlockDataClient) {
-        return skyBlockDataClient.getContract();
-    }
-
-    /**
      * Builds the {@link LastResponseAccessor} bridge bean as a method reference to
      * {@link Client#getLastResponse()}. This sidesteps the {@code final} class barrier so
      * tests can supply a synthetic last-response accessor without subclassing the
      * framework client.
      *
-     * @param skyBlockDataClient the Phase 4b GitHub client wrapper
+     * @param gitHubContentsClient the read proxy the data contract is built from
      * @return a method-reference accessor delegating to the wrapper's last-response cache
      */
     @Bean
-    public @NotNull LastResponseAccessor skyBlockDataLastResponseAccessor(@NotNull Client<SkyBlockDataContract> skyBlockDataClient) {
-        return skyBlockDataClient::getLastResponse;
+    public @NotNull LastResponseAccessor skyBlockDataLastResponseAccessor(@NotNull Client<GitHubContentsContract> gitHubContentsClient) {
+        return gitHubContentsClient::getLastResponse;
     }
 
     /**

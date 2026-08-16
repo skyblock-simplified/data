@@ -16,7 +16,7 @@ import dev.simplified.persistence.asset.ExternalAssetEntryState;
 import dev.simplified.persistence.asset.ExternalAssetState;
 import dev.simplified.persistence.exception.JpaException;
 import dev.simplified.persistence.source.ManifestIndex;
-import lombok.extern.log4j.Log4j2;
+import dev.simplified.annotations.Log;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
@@ -87,7 +87,7 @@ import java.util.stream.Collectors;
  * @see LastResponseAccessor
  */
 @Component
-@Log4j2
+@Log
 public class AssetPoller {
 
     /** Manifest path inside the {@code skyblock-data} repo (mirrors Phase 4b's constant). */
