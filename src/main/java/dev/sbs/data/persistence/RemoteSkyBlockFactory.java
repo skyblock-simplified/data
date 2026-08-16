@@ -68,7 +68,7 @@ public class RemoteSkyBlockFactory implements RepositoryFactory {
     /** Suffix appended to {@code @Table.name} when resolving the per-model overlay file path. */
     private static final @NotNull String OVERLAY_SUFFIX = ".json";
 
-    /** The human-readable source id shared with {@code GitHubConfig.SOURCE_ID} and the asset-state rows. */
+    /** The human-readable source id shared with {@code SkyBlockFactory.SOURCE_ID} and the asset-state rows. */
     private final @NotNull String sourceId;
 
     /** Model list delegated to the {@link SkyBlockFactory} bean (already topologically sorted). */

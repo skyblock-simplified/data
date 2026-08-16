@@ -1,9 +1,9 @@
 package dev.sbs.data.write;
 
+import api.simplified.skyblock.SkyBlockFactory;
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import dev.sbs.data.DataApi;
-import dev.sbs.data.config.GitHubConfig;
 import dev.sbs.data.persistence.RemoteSkyBlockFactory;
 import dev.sbs.data.persistence.WritableRemoteJsonSource;
 import dev.simplified.collection.ConcurrentList;
@@ -391,13 +391,13 @@ public class WriteBatchScheduler {
                 (Class) type,
                 (JpaModel) mutation.getEntity(),
                 DataApi.getGson(),
-                GitHubConfig.SOURCE_ID
+                SkyBlockFactory.SOURCE_ID
             );
             case DELETE -> WriteRequest.delete(
                 (Class) type,
                 (JpaModel) mutation.getEntity(),
                 DataApi.getGson(),
-                GitHubConfig.SOURCE_ID
+                SkyBlockFactory.SOURCE_ID
             );
         };
         // Producer-side WriteRequest.upsert/delete generate a fresh UUID for

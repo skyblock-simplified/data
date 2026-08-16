@@ -5,7 +5,6 @@ import api.simplified.github.response.GitHubCommit;
 import api.simplified.skyblock.contract.SkyBlockDataContract;
 import com.google.gson.Gson;
 import dev.sbs.data.DataApi;
-import dev.sbs.data.config.GitHubConfig;
 import dev.simplified.client.exception.NotModifiedException;
 import dev.simplified.client.response.Response;
 import dev.simplified.collection.Concurrent;
@@ -81,7 +80,7 @@ import java.util.stream.Collectors;
  * be subclassed in tests. Production wires the bridge as {@code client::getLastResponse};
  * tests supply a hand-rolled lambda returning a synthetic {@link Response}.
  *
- * @see GitHubConfig
+ * @see SkyBlockFactory
  * @see AssetDiffEngine
  * @see ExternalAssetState
  * @see LastResponseAccessor
