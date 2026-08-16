@@ -394,6 +394,11 @@ class WriteBatchSchedulerTest {
      */
     private static final class EmptySkyBlockFactory extends api.simplified.skyblock.SkyBlockFactory {
 
+        /** Takes a stub contract so no GitHub client is built for a test that issues no request. */
+        private EmptySkyBlockFactory() {
+            super(new ThrowingContract());
+        }
+
         @Override
         public @NotNull ConcurrentList<Class<JpaModel>> getModels() {
             return Concurrent.newUnmodifiableList();

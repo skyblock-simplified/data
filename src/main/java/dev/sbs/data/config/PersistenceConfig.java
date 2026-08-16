@@ -122,7 +122,7 @@ public class PersistenceConfig {
     ) {
         SkyBlockFactory skyBlockFactory = new api.simplified.skyblock.SkyBlockFactory();
         return new RemoteSkyBlockFactory(
-            GitHubConfig.SOURCE_ID,
+            SkyBlockFactory.SOURCE_ID,
             skyBlockFactory,
             gitHubIndexProvider,
             gitHubFileFetcher,
@@ -161,7 +161,7 @@ public class PersistenceConfig {
         JpaSession session = new SessionManager().connect(config);
         log.info(
             "data skyBlock session wired with RemoteSkyBlockFactory (sourceId='{}', overlayBasePath='{}', cacheProvider=HAZELCAST_CLIENT)",
-            GitHubConfig.SOURCE_ID, overlayBasePath
+            SkyBlockFactory.SOURCE_ID, overlayBasePath
         );
         return session;
     }

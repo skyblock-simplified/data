@@ -89,7 +89,7 @@ final class RemoteSkyBlockFactoryTest {
     @Test
     @SuppressWarnings("rawtypes")
     void wiresEveryModelWithDiskOverlaySourceWrappingRemoteJsonSource() {
-        SkyBlockFactory delegate = new api.simplified.skyblock.SkyBlockFactory();
+        SkyBlockFactory delegate = new api.simplified.skyblock.SkyBlockFactory(THROWING_WRITE);
         RemoteSkyBlockFactory factory = newFactory(delegate);
 
         assertThat(factory.getModels().size(), equalTo(delegate.getModels().size()));
@@ -126,7 +126,7 @@ final class RemoteSkyBlockFactoryTest {
 
     @Test
     void keyedMapContainsKnownModelClasses() {
-        SkyBlockFactory delegate = new api.simplified.skyblock.SkyBlockFactory();
+        SkyBlockFactory delegate = new api.simplified.skyblock.SkyBlockFactory(THROWING_WRITE);
         RemoteSkyBlockFactory factory = newFactory(delegate);
 
         assertThat(factory.getSources(), hasKey(Item.class));
@@ -137,7 +137,7 @@ final class RemoteSkyBlockFactoryTest {
 
     @Test
     void rejectsModelClassWithoutTableAnnotation() {
-        SkyBlockFactory delegate = new SkyBlockFactory() {
+        SkyBlockFactory delegate = new SkyBlockFactory(THROWING_WRITE) {
             @Override
             public @NotNull ConcurrentList<Class<JpaModel>> getModels() {
                 ConcurrentList<Class<JpaModel>> single = Concurrent.newList();
