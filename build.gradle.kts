@@ -42,7 +42,7 @@ dependencies {
     // /actuator/prometheus scrape endpoint. API key authentication is disabled
     // in application.properties because data exposes no REST
     // endpoints to protect.
-    implementation("com.github.simplified-dev:spring-framework") { version { strictly("ac95902") } }
+    implementation("com.github.simplified-dev:spring-framework") { version { strictly("6c1497b") } }
 
     // Micrometer Prometheus registry - Phase 6b.3. Version pinned explicitly via
     // the catalog to avoid drift against Spring Boot's managed dependencies
@@ -58,13 +58,13 @@ dependencies {
     implementation(libs.hazelcast)
 
     // Simplified infrastructure (formerly transitive via minecraft-api)
-    implementation("com.github.simplified-dev:client") { version { strictly("1ca9934") } }
-    implementation("com.github.simplified-dev:gson-extras") { version { strictly("f143dc1") } }
+    implementation("com.github.simplified-dev:client") { version { strictly("2ced9a4") } }
+    implementation("com.github.simplified-dev:gson-extras") { version { strictly("ed1d77e") } }
 
     // Split minecraft-api modules - data only consumes the persistence API.
     // SkyBlockData, SkyBlockFactory, the 43 JPA entities, and minecraft-text (transitively
     // via api()) all flow in from this single dep.
-    implementation("com.github.simplified-api:skyblock") { version { strictly("f0be258") } }
+    implementation("com.github.simplified-api:skyblock") { version { strictly("d566734") } }
 }
 
 tasks {
