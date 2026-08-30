@@ -65,6 +65,16 @@ dependencies {
     // SkyBlockData, SkyBlockFactory, the 43 JPA entities, and minecraft-text (transitively
     // via api()) all flow in from this single dep.
     implementation("com.github.simplified-api:skyblock") { version { strictly("d566734") } }
+
+    // The corpus client - GitHubCorpus and its write instruction. Reached directly because this
+    // deployment is the one that holds a token, and holding one is the whole of what makes it a
+    // writer.
+    implementation("com.github.simplified-api:github") { version { strictly("b64127c") } }
+
+    // The repository contracts, for WriteRequest and JpaModel on the queue path.
+    implementation("com.github.simplified-dev:persistence-contracts") { version { strictly("master-SNAPSHOT") } }
+    implementation("com.github.simplified-dev:persistence") { version { strictly("2d6b0e7") } }
+    implementation("com.github.simplified-dev:collections") { version { strictly("9696ca5") } }
 }
 
 tasks {
