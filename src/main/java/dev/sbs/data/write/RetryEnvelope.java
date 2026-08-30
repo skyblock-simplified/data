@@ -1,5 +1,6 @@
 package dev.sbs.data.write;
 
+import dev.sbs.api.write.WriteEnvelope;
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.RequiredArgsConstructor;

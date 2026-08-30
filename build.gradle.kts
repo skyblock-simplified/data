@@ -66,6 +66,10 @@ dependencies {
     // via api()) all flow in from this single dep.
     implementation("com.github.simplified-api:skyblock") { version { strictly("d566734") } }
 
+    // The shared SkyBlock-Simplified library, which owns the envelope the write queue carries -
+    // one definition of the wire format, spoken by the producer and by this consumer.
+    implementation("com.github.skyblock-simplified:api:master-SNAPSHOT")
+
     // The corpus client - GitHubCorpus and its write instruction. Reached directly because this
     // deployment is the one that holds a token, and holding one is the whole of what makes it a
     // writer.

@@ -3,6 +3,7 @@ package dev.sbs.data.write;
 import com.hazelcast.collection.IQueue;
 import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
+import dev.sbs.api.write.WriteEnvelope;
 import dev.simplified.annotations.Log;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -33,28 +34,44 @@ import java.util.UUID;
 @Component
 public class WriteMetrics {
 
-    /** Writes drained fresh from the queue. */
+    /**
+     * Writes drained fresh from the queue.
+     */
     public static final @NotNull String METER_REQUESTS_RECEIVED = "skyblock.writes.requests.received";
 
-    /** Writes drained from the retry map, tagged by attempt. */
+    /**
+     * Writes drained from the retry map, tagged by attempt.
+     */
     public static final @NotNull String METER_REQUESTS_RETRIED = "skyblock.writes.requests.retried";
 
-    /** Writes moved to the dead-letter map, tagged by entity type. */
+    /**
+     * Writes moved to the dead-letter map, tagged by entity type.
+     */
     public static final @NotNull String METER_DEADLETTER_ADDED = "skyblock.writes.deadletter.added";
 
-    /** How long one write took, tagged by outcome. */
+    /**
+     * How long one write took, tagged by outcome.
+     */
     public static final @NotNull String METER_WRITE_DURATION = "skyblock.writes.duration";
 
-    /** How long a write waited between being enqueued and being applied. */
+    /**
+     * How long a write waited between being enqueued and being applied.
+     */
     public static final @NotNull String METER_END_TO_END_LATENCY = "skyblock.writes.end_to_end.latency";
 
-    /** How many writes are waiting on the queue. */
+    /**
+     * How many writes are waiting on the queue.
+     */
     public static final @NotNull String METER_PRIMARY_QUEUE_SIZE = "skyblock.writes.primary_queue.size";
 
-    /** How many writes are waiting out a backoff. */
+    /**
+     * How many writes are waiting out a backoff.
+     */
     public static final @NotNull String METER_RETRY_IMAP_SIZE = "skyblock.writes.retry_imap.size";
 
-    /** How many writes have run out of attempts. */
+    /**
+     * How many writes have run out of attempts.
+     */
     public static final @NotNull String METER_DEADLETTER_IMAP_SIZE = "skyblock.writes.deadletter_imap.size";
 
     private static final @NotNull String TAG_ATTEMPT = "attempt";
