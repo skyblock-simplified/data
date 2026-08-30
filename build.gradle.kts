@@ -75,8 +75,6 @@ dependencies {
     // writer.
     implementation("com.github.simplified-api:github") { version { strictly("b64127c") } }
 
-    // The repository contracts, for WriteRequest and JpaModel on the queue path.
-    implementation("com.github.simplified-dev:persistence-contracts") { version { strictly("master-SNAPSHOT") } }
     implementation("com.github.simplified-dev:persistence") { version { strictly("2d6b0e7") } }
     implementation("com.github.simplified-dev:collections") { version { strictly("9696ca5") } }
 }

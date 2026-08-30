@@ -11,7 +11,6 @@ import dev.simplified.gson.GsonSettings;
 import dev.simplified.persistence.JpaConfig;
 import dev.simplified.persistence.JpaSession;
 import dev.simplified.persistence.SessionManager;
-import dev.simplified.persistence.store.Source;
 import dev.simplified.util.Logging;
 import jakarta.annotation.PreDestroy;
 import org.jetbrains.annotations.NotNull;
@@ -42,30 +41,33 @@ public class PersistenceConfig {
     /**
      * The corpus this service reads and writes.
      *
+     * <p>The token is read from {@value SkyBlockFactory#TOKEN_VARIABLE} and an unset one is answered
+     * here, at startup, rather than as a rejected write later. It authenticates the polling reads
+     * too, which is what lifts them off the sixty-an-hour cap an anonymous client works under.
+     *
      * @return the corpus
      */
     @Bean
     public @NotNull GitHubCorpus skyBlockCorpus() {
-        return SkyBlockFactory.CORPUS;
+        return SkyBlockFactory.corpus()
+            .token(GitHubToken.of(SkyBlockFactory.TOKEN_VARIABLE))
+            .build();
     }
 
     /**
      * The corpus session, holding a generation of every registered type.
      *
-     * <p>The write instruction is read from {@value SkyBlockFactory#TOKEN_VARIABLE}. Without one
-     * the source is read-only, and {@link JpaSession#write} refuses rather than half-succeeding,
-     * which is what makes an unset token a startup-time answer rather than a runtime surprise.
+     * <p>The factory is the writing one, so {@link JpaSession#write} has a source to apply through.
+     * Every other consumer builds the reading factory and has no write half to reach for.
      *
      * @param skyBlockCorpus the corpus
      * @return the session
      */
     @Bean
     public @NotNull JpaSession skyBlockSession(@NotNull GitHubCorpus skyBlockCorpus) {
-        Source source = skyBlockCorpus.writing(GitHubToken.of(SkyBlockFactory.TOKEN_VARIABLE));
-
         JpaSession session = new SessionManager().connect(
             JpaConfig.builder()
-                .withRepositoryFactory(new SkyBlockFactory(source))
+                .withRepositoryFactory(SkyBlockFactory.writing(skyBlockCorpus))
                 .withGsonSettings(
                     DataApi.getGsonSettings()
                         .mutate()

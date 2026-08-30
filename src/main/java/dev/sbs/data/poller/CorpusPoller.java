@@ -1,11 +1,11 @@
 package dev.sbs.data.poller;
 
 import api.simplified.github.GitHubCorpus;
+import api.simplified.github.ManifestIndex;
 import dev.simplified.annotations.Log;
 import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.persistence.store.ManifestIndex;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
