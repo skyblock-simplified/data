@@ -12,7 +12,7 @@ import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.persistence.JpaModel;
 import dev.simplified.persistence.JpaSession;
-import dev.simplified.persistence.store.WriteRequest;
+import dev.simplified.persistence.source.WriteRequest;
 import jakarta.annotation.PreDestroy;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Value;
