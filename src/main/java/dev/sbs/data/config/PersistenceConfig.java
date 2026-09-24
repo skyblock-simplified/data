@@ -3,14 +3,10 @@ package dev.sbs.data.config;
 import api.simplified.github.GitHubCorpus;
 import api.simplified.github.GitHubToken;
 import api.simplified.skyblock.SkyBlockData;
-import api.simplified.skyblock.model.Item;
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.core.HazelcastInstance;
+import dev.sbs.data.write.WriteQueueConsumer;
 import dev.simplified.annotations.Log;
-import dev.simplified.persistence.JpaConfig;
-import dev.simplified.persistence.JpaModel;
-import dev.simplified.persistence.JpaSession;
-import dev.simplified.persistence.SessionManager;
 import jakarta.annotation.PreDestroy;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.context.annotation.Bean;
@@ -23,9 +19,10 @@ import org.springframework.context.annotation.Configuration;
  * corpus for its write half. Every other consumer reads. That difference is the token and nothing
  * else - no flag, no mode, no second source.
  *
- * <p>There is one session and it holds no driver. The rows every repository serves come from the
- * corpus, so no database is opened, no schema is created and no second-level cache exists to
- * configure. The Hazelcast client that remains is the write queue's, not Hibernate's.
+ * <p>There is no session and no driver. Nothing here reads the corpus except to write it - the
+ * {@link WriteQueueConsumer} applies each write through {@link SkyBlockData#writing(GitHubCorpus)} -
+ * so no generation is held, no database is opened and no second-level cache exists to configure.
+ * The Hazelcast client that remains is the write queue's, not Hibernate's.
  */
 @Configuration
 @Log
@@ -47,8 +44,8 @@ public class PersistenceConfig {
      *
      * <p>The token is read from {@value #TOKEN_VARIABLE} and an unset one is answered here, at
      * startup, rather than as a rejected write later. It authenticates every read too - the
-     * connect, the session's cadence ticks and the catalogue refresh before each write - which is
-     * what lifts them off the sixty-an-hour cap an anonymous client works under.
+     * catalogue refresh and the layer reads each write merges before it rewrites a document - which
+     * is what lifts them off the sixty-an-hour cap an anonymous client works under.
      *
      * @return the corpus
      */
@@ -57,26 +54,6 @@ public class PersistenceConfig {
         return SkyBlockData.corpus()
             .token(GitHubToken.of(TOKEN_VARIABLE))
             .build();
-    }
-
-    /**
-     * The corpus session, holding a generation of every registered type.
-     *
-     * <p>The source is the writing one, so {@link JpaSession#write} has a write half to apply
-     * through. Every other consumer builds the reading source and has none to reach for.
-     *
-     * @param skyBlockCorpus the corpus
-     * @return the session
-     */
-    @Bean
-    public @NotNull JpaSession skyBlockSession(@NotNull GitHubCorpus skyBlockCorpus) {
-        JpaSession session = new SessionManager().connect(new JpaConfig(
-            JpaModel.resolveModels(Item.class),
-            SkyBlockData.writing(skyBlockCorpus)
-        ));
-
-        log.info("data corpus session wired against '{}' with a write instruction", skyBlockCorpus);
-        return session;
     }
 
     /**

@@ -7,8 +7,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 /**
  * Spring Boot context-loads test for {@link SimplifiedData}.
  *
- * <p>Starting the context connects to a Hazelcast cluster, reads a write token and fetches the
- * corpus catalogue, so this runs only where all three are available. Set
+ * <p>Starting the context connects to a Hazelcast cluster and reads a write token, so this runs
+ * only where both are available. Set
  * {@code SKYBLOCK_HAZELCAST=true} to run it; everywhere else it reports as skipped rather than
  * failing on an absence it cannot do anything about.</p>
  */

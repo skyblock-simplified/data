@@ -54,18 +54,16 @@ GitHub asset polling, and the skyblock-data repo integration.
 
 ### Entry Point
 
-- **`SimplifiedData`** - Spring Boot application. Headless (no web server). Bootstraps a `JpaSession`
-  via `PersistenceConfig` that connects to the dockerized Hazelcast cluster as a Hazelcast client.
+- **`SimplifiedData`** - Spring Boot application. Headless (no web server). Holds no `JpaSession`:
+  `PersistenceConfig` wires the corpus and a Hazelcast client to the dockerized cluster, and
+  `WriteQueueConsumer` writes straight through the corpus's writable source.
 
 ### Package Structure
 
 - **`config/`** - `@Configuration` beans:
-  - `PersistenceConfig` - wires two `JpaSession` beans (`skyBlockSession` via
-    `RemoteSkyBlockFactory` + `JpaCacheProvider.HAZELCAST_CLIENT`, and `assetSession` via
-    `JpaCacheProvider.EHCACHE`), plus the Phase 6b `skyBlockWriteHazelcastInstance` bean
-    (a second Hazelcast client alongside the JCache-managed instance used for direct
-    IQueue / IMap access on the write path). Registers the Phase 6b `remoteSkyBlockFactory`
-    bean that the write-path beans inject to iterate the `getWritableSources()` registry.
+  - `PersistenceConfig` - wires the `skyBlockCorpus` bean, named with the write token, and the
+    `skyBlockWriteHazelcastInstance` bean the write queue and its retry and dead-letter maps
+    live on.
   - `GitHubConfig` - wires three Feign clients against `api.github.com`: the read-path
     `skyBlockDataClient` (`Accept: application/vnd.github.raw+json` for raw file bodies),
     the Phase 6b write-path `skyBlockDataWriteClient` (`Accept: application/vnd.github+json`
@@ -148,7 +146,7 @@ GitHub asset polling, and the skyblock-data repo integration.
 
 - **`skyblock`** (`com.github.simplified-api:skyblock`) - the corpus models and `SkyBlockData`, whose
   `corpus()` names the published corpus and whose `writing(corpus)` answers the writable source
-  `PersistenceConfig` registers, with every model under `Item`'s package, on a session of its own.
+  `WriteQueueConsumer` applies every write through.
 - **`spring-boot-starter`** - context, lifecycle, configuration.
 - **`spring-boot-starter-actuator`** - health and metrics endpoints (Phase 2c verification).
 - **`com.hazelcast:hazelcast` 5.6.0** (`implementation`) - Hazelcast Java client. Promoted

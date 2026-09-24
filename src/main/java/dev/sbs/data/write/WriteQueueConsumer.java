@@ -1,5 +1,7 @@
 package dev.sbs.data.write;
 
+import api.simplified.github.GitHubCorpus;
+import api.simplified.skyblock.SkyBlockData;
 import com.google.gson.Gson;
 import com.hazelcast.collection.IQueue;
 import com.hazelcast.core.HazelcastInstance;
@@ -11,10 +13,11 @@ import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
 import dev.simplified.collection.ConcurrentMap;
 import dev.simplified.persistence.JpaModel;
-import dev.simplified.persistence.JpaSession;
+import dev.simplified.persistence.source.Source;
 import dev.simplified.persistence.source.WriteRequest;
 import jakarta.annotation.PreDestroy;
 import org.jetbrains.annotations.NotNull;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
@@ -30,9 +33,10 @@ import java.util.concurrent.TimeUnit;
  * Drains the write queue and applies what it finds to the corpus.
  *
  * <p>The queue, the backoff and the dead-letter map are this deployment's. What the library answers
- * is one question - did this write reach the origin - and the answer is {@link JpaSession#write},
- * which resolves the type's source, refuses when it holds no write instruction, applies the write
- * and rebuilds that type.
+ * is one question - did this write reach the origin - and the answer is the corpus's writable
+ * source, {@link SkyBlockData#writing(GitHubCorpus)}, whose {@link Source.Writable#write} applies
+ * the write and throws when it fails. No session stands between them: this service reads nothing
+ * it does not write, so it holds no generation for a write to rebuild.
  *
  * <p>A cycle drains what is waiting, groups it by type and operation, and issues one write per
  * group. Grouping is worth doing because a document origin rewrites a whole file per write, so N
@@ -64,7 +68,7 @@ public class WriteQueueConsumer {
     private static final long POLL_TIMEOUT_MILLIS = 500;
 
     private final @NotNull HazelcastInstance hazelcast;
-    private final @NotNull JpaSession session;
+    private final @NotNull Source.Writable source;
     private final @NotNull WriteMetrics metrics;
     private final @NotNull Gson gson = DataApi.getGson();
     private final boolean enabled;
@@ -74,25 +78,47 @@ public class WriteQueueConsumer {
     private volatile Thread drain;
 
     /**
-     * Constructs the consumer.
+     * Constructs the consumer over the writable source of the given corpus.
      *
      * @param hazelcast the client the queue and its maps live on
-     * @param session the session the writes are applied through
+     * @param corpus the corpus the writes are applied to, named with the token that makes it writable
      * @param metrics the deployment's write observability
      * @param enabled whether the drain thread starts
      * @param maxAttempts how many retries a write gets before it is dead-lettered
      * @param initialDelayMinutes the delay before the first retry, doubling thereafter
      */
+    @Autowired
     public WriteQueueConsumer(
         @NotNull HazelcastInstance hazelcast,
-        @NotNull JpaSession session,
+        @NotNull GitHubCorpus corpus,
         @NotNull WriteMetrics metrics,
         @Value("${skyblock.data.github.write-consumer-enabled:true}") boolean enabled,
         @Value("${skyblock.data.github.write-retry-max-attempts:5}") int maxAttempts,
         @Value("${skyblock.data.github.write-retry-initial-delay-minutes:1}") long initialDelayMinutes
     ) {
+        this(hazelcast, SkyBlockData.writing(corpus), metrics, enabled, maxAttempts, initialDelayMinutes);
+    }
+
+    /**
+     * Constructs the consumer over the given writable source.
+     *
+     * @param hazelcast the client the queue and its maps live on
+     * @param source the source the writes are applied through
+     * @param metrics the deployment's write observability
+     * @param enabled whether the drain thread starts
+     * @param maxAttempts how many retries a write gets before it is dead-lettered
+     * @param initialDelayMinutes the delay before the first retry, doubling thereafter
+     */
+    WriteQueueConsumer(
+        @NotNull HazelcastInstance hazelcast,
+        @NotNull Source.Writable source,
+        @NotNull WriteMetrics metrics,
+        boolean enabled,
+        int maxAttempts,
+        long initialDelayMinutes
+    ) {
         this.hazelcast = hazelcast;
-        this.session = session;
+        this.source = source;
         this.metrics = metrics;
         this.enabled = enabled;
         this.maxAttempts = maxAttempts;
@@ -205,7 +231,7 @@ public class WriteQueueConsumer {
             Instant started = Instant.now();
 
             try {
-                this.session.write(this.request(drained, ids));
+                this.source.write(this.request(drained, ids));
                 this.metrics.recordWriteSuccess(started);
                 ids.forEach(id -> this.metrics.recordEndToEnd(drained.get(id).getEnqueuedAt()));
             } catch (Exception exception) {

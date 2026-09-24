@@ -1,9 +1,5 @@
 package dev.sbs.data.write;
 
-import api.simplified.skyblock.model.BestiaryCategory;
-import api.simplified.skyblock.model.BestiarySubcategory;
-import api.simplified.skyblock.model.Essence;
-import api.simplified.skyblock.model.Item;
 import api.simplified.skyblock.model.Region;
 import com.google.gson.Gson;
 import com.hazelcast.collection.IQueue;
@@ -15,13 +11,8 @@ import com.hazelcast.core.HazelcastInstance;
 import com.hazelcast.map.IMap;
 import dev.sbs.api.write.WriteEnvelope;
 import dev.sbs.data.DataApi;
-import dev.simplified.collection.Concurrent;
 import dev.simplified.collection.ConcurrentList;
-import dev.simplified.collection.ConcurrentMap;
-import dev.simplified.persistence.JpaConfig;
 import dev.simplified.persistence.JpaModel;
-import dev.simplified.persistence.JpaSession;
-import dev.simplified.persistence.SessionManager;
 import dev.simplified.persistence.exception.JpaException;
 import dev.simplified.persistence.source.Source;
 import dev.simplified.persistence.source.WriteRequest;
@@ -36,14 +27,14 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * Covers the drain against a real in-process Hazelcast member and a real session.
+ * Covers the drain against a real in-process Hazelcast member, writing straight into a source the
+ * way the deployment writes straight into the corpus's writable one.
  *
  * <p>The origin is a recording source rather than GitHub, because what is being tested is what the
  * deployment does with a write - drain it, group it, apply it, and put it back when it fails - and
@@ -55,8 +46,6 @@ class WriteQueueConsumerTest {
     private static final @NotNull Gson GSON = DataApi.getGson();
 
     private HazelcastInstance hazelcast;
-    private SessionManager sessionManager;
-    private JpaSession session;
     private RecordingOrigin origin;
     private WriteQueueConsumer consumer;
 
@@ -78,12 +67,10 @@ class WriteQueueConsumerTest {
 
         this.hazelcast = Hazelcast.newHazelcastInstance(config);
         this.origin = new RecordingOrigin();
-        this.sessionManager = new SessionManager();
-        this.session = this.sessionManager.connect(new JpaConfig(JpaModel.resolveModels(Item.class), this.origin));
 
         this.consumer = new WriteQueueConsumer(
             this.hazelcast,
-            this.session,
+            this.origin,
             new WriteMetrics(new SimpleMeterRegistry()),
             false,
             2,
@@ -93,9 +80,6 @@ class WriteQueueConsumerTest {
 
     @AfterEach
     void tearDown() {
-        if (this.sessionManager != null)
-            this.sessionManager.shutdown();
-
         if (this.hazelcast != null)
             this.hazelcast.shutdown();
     }
@@ -130,27 +114,8 @@ class WriteQueueConsumerTest {
 
         assertThat(this.consumer.cycle(), is(1));
         assertThat(this.origin.applied.size(), is(1));
-        assertThat(this.origin.applied.get(0).type(), equalTo(Region.class));
-        assertThat(((Region) this.origin.applied.get(0).rows().getFirst()).getId(), equalTo("HUB"));
-    }
-
-    @Test
-    @DisplayName("a drained write rebuilds the written model and every model reaching it, and no other")
-    void aDrainedWriteRebuildsWhatLinksIntoIt() throws Exception {
-        int regions = this.origin.readsOf(Region.class);
-        int categories = this.origin.readsOf(BestiaryCategory.class);
-        int subcategories = this.origin.readsOf(BestiarySubcategory.class);
-        int essences = this.origin.readsOf(Essence.class);
-
-        this.enqueue("HUB");
-        assertThat(this.consumer.cycle(), is(1));
-
-        // BestiaryCategory links to Region directly, BestiarySubcategory only through
-        // BestiaryCategory, and Essence to nothing that reaches Region.
-        assertThat(this.origin.readsOf(Region.class), is(regions + 1));
-        assertThat(this.origin.readsOf(BestiaryCategory.class), is(categories + 1));
-        assertThat(this.origin.readsOf(BestiarySubcategory.class), is(subcategories + 1));
-        assertThat(this.origin.readsOf(Essence.class), is(essences));
+        assertThat(this.origin.applied.getFirst().type(), equalTo(Region.class));
+        assertThat(((Region) this.origin.applied.getFirst().rows().getFirst()).getId(), equalTo("HUB"));
     }
 
     @Test
@@ -215,7 +180,7 @@ class WriteQueueConsumerTest {
 
         // One request carrying both rows, because the origin rewrites a whole document per write.
         assertThat(this.origin.applied.size(), is(1));
-        assertThat(this.origin.applied.get(0).rows().size(), is(2));
+        assertThat(this.origin.applied.getFirst().rows().size(), is(2));
     }
 
     @Test
@@ -252,30 +217,25 @@ class WriteQueueConsumerTest {
     }
 
     /**
-     * A source that records what it was asked to write and how often each type was read, and can be
-     * told to refuse a write.
+     * A source that records what it was asked to write, and can be told to refuse a write.
+     *
+     * <p>A read fails the case. The consumer applies each write straight to the source and holds no
+     * generation, so nothing on the write path has a reason to read.
      */
     private static final class RecordingOrigin implements Source.Writable {
 
         private final @NotNull CopyOnWriteArrayList<WriteRequest<?>> applied = new CopyOnWriteArrayList<>();
-        private final @NotNull ConcurrentMap<Class<?>, AtomicInteger> reads = Concurrent.newMap();
         private boolean failing = false;
-
-        private int readsOf(@NotNull Class<?> type) {
-            AtomicInteger count = this.reads.get(type);
-            return count == null ? 0 : count.get();
-        }
 
         @Override
         public <T extends JpaModel> @NotNull ConcurrentList<T> read(@NotNull Class<T> type) {
-            this.reads.computeIfAbsent(type, key -> new AtomicInteger()).incrementAndGet();
-            return Concurrent.newUnmodifiableList();
+            throw new AssertionError(String.format("The write path read '%s'", type.getName()));
         }
 
         @Override
         public <T extends JpaModel> void write(@NotNull WriteRequest<T> request) throws JpaException {
             if (this.failing)
-                throw new JpaException("the origin refused '%s'", request.type().getName());
+                throw new JpaException("The origin refused '%s'", request.type().getName());
 
             this.applied.add(request);
         }
