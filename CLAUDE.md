@@ -14,7 +14,7 @@ in the auto-memory.
 ./gradlew :data:test           # Run all tests
 
 # The Spring Boot context test needs a live Hazelcast cluster on skyblock-hazelcast-net and
-# SKYBLOCK_GITHUB_TOKEN set, so it is skipped unless SKYBLOCK_HAZELCAST=true.
+# SKYBLOCK_DATA_GITHUB_TOKEN set, so it is skipped unless SKYBLOCK_HAZELCAST=true.
 SKYBLOCK_HAZELCAST=true ./gradlew :data:test
 
 # Fat JAR
@@ -160,8 +160,8 @@ write queue, its retry map and its dead-letter map.
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `SKYBLOCK_GITHUB_TOKEN` | required | unset | Fine-grained PAT with `contents:write` on the `simplified-api/skyblock` repo, which carries the corpus. Nothing reads the corpus at startup: the token authenticates the requests each queued write makes - the catalogue refresh and the layer reads before it rewrites a document, then the PUT that rewrites it - and lifts them off the 60 req/hr unauthenticated budget. An unset or blank variable fails context refresh when the `skyBlockCorpus` bean is built, before any request; a token that is expired or lacks write scope shows up as a failed write, which the queue retries and then dead-letters, not as a failed boot. |
-| `SKYBLOCK_HAZELCAST` | optional | unset | When set to `true`, enables the Spring context-loads test in `SimplifiedDataApplicationTests`, which needs a live Hazelcast cluster and `SKYBLOCK_GITHUB_TOKEN`; otherwise the test reports as skipped. Does not affect production behavior. |
+| `SKYBLOCK_DATA_GITHUB_TOKEN` | required | unset | Fine-grained PAT with `contents:write` on the `simplified-api/skyblock` repo, which carries the corpus. Nothing reads the corpus at startup: the token authenticates the requests each queued write makes - the catalogue refresh and the layer reads before it rewrites a document, then the PUT that rewrites it - and lifts them off the 60 req/hr unauthenticated budget. An unset or blank variable fails context refresh when the `skyBlockCorpus` bean is built, before any request; a token that is expired or lacks write scope shows up as a failed write, which the queue retries and then dead-letters, not as a failed boot. |
+| `SKYBLOCK_HAZELCAST` | optional | unset | When set to `true`, enables the Spring context-loads test in `SimplifiedDataApplicationTests`, which needs a live Hazelcast cluster and `SKYBLOCK_DATA_GITHUB_TOKEN`; otherwise the test reports as skipped. Does not affect production behavior. |
 
 `PersistenceConfig.skyBlockCorpus()` reads the token variable, named by
 `PersistenceConfig.TOKEN_VARIABLE`, straight from the environment through `GitHubToken.of`; no

@@ -31,7 +31,7 @@ public class PersistenceConfig {
     /**
      * The environment variable holding the GitHub personal access token the corpus is written with.
      */
-    public static final @NotNull String TOKEN_VARIABLE = "SKYBLOCK_GITHUB_TOKEN";
+    public static final @NotNull String TOKEN_VARIABLE = "SKYBLOCK_DATA_GITHUB_TOKEN";
 
     /**
      * The write-path Hazelcast client, held so {@link #shutdownWriteHazelcastInstance()} can close
