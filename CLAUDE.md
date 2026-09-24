@@ -87,9 +87,6 @@ GitHub asset polling, and the skyblock-data repo integration.
   buffer, `commitBatch` with manifest path resolution, 412 retry with blob SHA refetch,
   escalation of failed mutations to the caller's retry queue).
 
-- **`poller/`** - Phase 4c `AssetPoller` watchdog + `AssetDiffEngine` + Phase 5.5
-  `RefreshTrigger` SAM for targeted refresh.
-
 - **`write/`** - Phase 6b / 6b.1 write path:
   - `WriteMode` - enum `{GIT_DATA, CONTENTS}` controlling the `WriteBatchScheduler.tick()`
     dispatch. Phase 6b.1 default is `GIT_DATA`; `CONTENTS` is the Phase 6b per-file

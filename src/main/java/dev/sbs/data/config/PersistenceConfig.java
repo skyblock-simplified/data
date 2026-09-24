@@ -46,8 +46,9 @@ public class PersistenceConfig {
      * The corpus this service reads and writes.
      *
      * <p>The token is read from {@value #TOKEN_VARIABLE} and an unset one is answered here, at
-     * startup, rather than as a rejected write later. It authenticates the polling reads too, which
-     * is what lifts them off the sixty-an-hour cap an anonymous client works under.
+     * startup, rather than as a rejected write later. It authenticates every read too - the
+     * connect, the session's cadence ticks and the catalogue refresh before each write - which is
+     * what lifts them off the sixty-an-hour cap an anonymous client works under.
      *
      * @return the corpus
      */
