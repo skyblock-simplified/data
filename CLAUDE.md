@@ -127,6 +127,15 @@ Tests: `WriteQueueConsumerTest` drains against a real in-process Hazelcast membe
 code with a random cluster name and discovery off, over a recording source rather than GitHub.
 `SimplifiedDataApplicationTests` is the context-loads test gated on `SKYBLOCK_HAZELCAST`.
 
+`src/test/resources/hazelcast.xml` is a member configuration - cluster `skyblock-test`, port 5801
+with auto-increment over 20 ports, every join mechanism off - that nothing loads.
+`WriteQueueConsumerTest` passes its `Config` to `Hazelcast.newHazelcastInstance(Config)`, which
+reads no file, and nothing calls the no-argument form that would look for a classpath
+`hazelcast.xml`. The context the gated test starts holds one Hazelcast instance, the client
+`PersistenceConfig` builds from `hazelcast-client.xml`, and none of the Spring Boot 4.0.5 modules
+on the test classpath carries a Hazelcast auto-configuration that would build a member from the
+file.
+
 ### Dependencies
 
 Every Simplified coordinate is pinned `strictly` to a sha except `SkyBlock-Simplified/api`, taken

@@ -34,19 +34,19 @@ dependencies {
     testImplementation(libs.junit.platform.launcher)
     testImplementation(libs.spring.boot.starter.test)
 
-    // Server framework - transitively provides spring-boot-starter-web and
-    // spring-boot-starter-actuator via api() exports. Phase 6b.3 swapped the
-    // previous spring-boot-starter + spring-boot-starter-actuator pair for this
-    // single dep so the Spring setup matches server / server-api, and
-    // data picks up the servlet container required for the
-    // /actuator/prometheus scrape endpoint. API key authentication is disabled
-    // in application.properties because data exposes no REST
-    // endpoints to protect.
+    // Server framework - its api() exports supply the Spring Boot starters this service runs
+    // on: spring-boot-starter-web, whose servlet container serves the Actuator endpoints on
+    // 8080, spring-boot-starter-actuator, which exposes /actuator/prometheus for the scrape,
+    // and spring-boot-starter-security, so the only starter declared here is the test one.
+    // The library exports client and gson-extras as well. application.properties sets
+    // api.key.authentication.enabled=false: the only endpoints served are Actuator's, and
+    // this module has no controller of its own for the library's API key authentication to
+    // protect.
     implementation("com.github.simplified-dev:spring-framework") { version { strictly("6c1497b") } }
 
-    // Micrometer Prometheus registry - Phase 6b.3. Version pinned explicitly via
-    // the catalog to avoid drift against Spring Boot's managed dependencies
-    // since data does not import spring-boot-dependencies as a BOM.
+    // Micrometer Prometheus registry - renders every meter, WriteMetrics' included, as the
+    // /actuator/prometheus output. The catalog carries its version, since data imports
+    // no spring-boot-dependencies BOM that would supply one.
     implementation(libs.micrometer.registry.prometheus)
 
     // Hazelcast - the client carries the write queue, its retry map and its dead-letter
@@ -57,13 +57,13 @@ dependencies {
     // WriteQueueConsumerTest drains against.
     implementation(libs.hazelcast)
 
-    // Simplified infrastructure (formerly transitive via minecraft-api)
+    // gson-extras holds DataApi's GsonSettings; client is the HTTP client the corpus calls through
     implementation("com.github.simplified-dev:client") { version { strictly("2ced9a4") } }
     implementation("com.github.simplified-dev:gson-extras") { version { strictly("ed1d77e") } }
 
-    // Split minecraft-api modules - data only consumes the persistence API.
-    // SkyBlockData, the corpus models and minecraft-text (transitively via api()) flow in from
-    // this one dependency.
+    // The SkyBlock corpus - SkyBlockData, whose corpus() names the published corpus and whose
+    // writing(corpus) answers the writable source every queued write goes through, and the
+    // corpus models. minecraft-text reaches the classpath through its api() exports.
     implementation("com.github.simplified-api:skyblock") { version { strictly("d566734") } }
 
     // The shared SkyBlock-Simplified library, which owns the envelope the write queue carries -

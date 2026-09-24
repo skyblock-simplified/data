@@ -18,3 +18,19 @@ Open items in `data` on `feat/indexing`. Each stays here until it is closed or a
 >   `:14-16`; `src/main/resources/application.properties:9-12`
 > - Type: **RISK**
 > - Status: **OPEN**
+
+> #### The test hazelcast.xml is loaded by nothing
+> `src/test/resources/hazelcast.xml` configures a member - cluster `skyblock-test`, port 5801 with
+> auto-increment over 20 ports, every join mechanism off - that no test and no bean reads.
+> `WriteQueueConsumerTest` builds its `Config` in code and passes it to
+> `Hazelcast.newHazelcastInstance(Config)`, which reads no file; nothing calls the no-argument form,
+> the one that would look for a classpath `hazelcast.xml`. `SimplifiedDataApplicationTests` starts a
+> context whose one Hazelcast instance is `PersistenceConfig`'s client, built from
+> `hazelcast-client.xml`, and none of the Spring Boot 4.0.5 modules on the test classpath carries a
+> Hazelcast auto-configuration that would build a member from the file. It is kept; whether a test
+> should use it or it should go is open.
+>
+> - Affected: `src/test/resources/hazelcast.xml`;
+>   `src/test/java/dev/sbs/data/write/WriteQueueConsumerTest.java:54-68` - `setUp`
+> - Type: **GAP**
+> - Status: **OPEN**
