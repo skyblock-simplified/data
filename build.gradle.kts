@@ -35,18 +35,18 @@ dependencies {
     testImplementation(libs.spring.boot.starter.test)
 
     // Server framework - its api() exports supply the Spring Boot starters this service runs
-    // on: spring-boot-starter-web, whose servlet container serves the Actuator endpoints on
-    // 8080, spring-boot-starter-actuator, which exposes /actuator/prometheus for the scrape,
-    // and spring-boot-starter-security, so the only starter declared here is the test one.
-    // The library exports client and gson-extras as well. application.properties sets
-    // api.key.authentication.enabled=false: the only endpoints served are Actuator's, and
-    // this module has no controller of its own for the library's API key authentication to
-    // protect.
+    // on: spring-boot-starter-web for the servlet container on 8080, spring-boot-starter-actuator
+    // for /actuator/prometheus, and spring-boot-starter-security, so the only starter declared
+    // here is the test one; it exports client and gson-extras as well. The container serves
+    // Actuator's endpoints, Spring Boot's /error, and the /login and /logout of Spring Security's
+    // default chain, which applies because none of the library's security configurations is
+    // registered. No controller is this module's own, so application.properties sets
+    // api.key.authentication.enabled=false.
     implementation("com.github.simplified-dev:spring-framework") { version { strictly("6c1497b") } }
 
-    // Micrometer Prometheus registry - renders every meter, WriteMetrics' included, as the
-    // /actuator/prometheus output. The catalog carries its version, since data imports
-    // no spring-boot-dependencies BOM that would supply one.
+    // Micrometer Prometheus registry - Spring Boot serves /actuator/prometheus only with it on the
+    // classpath, and the actuator starter does not carry it. The catalog pins it at 1.16.4, the
+    // Micrometer line Spring Boot 4.0.5 manages, since data imports no BOM that would supply one.
     implementation(libs.micrometer.registry.prometheus)
 
     // Hazelcast - the client carries the write queue, its retry map and its dead-letter

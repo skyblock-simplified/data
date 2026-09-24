@@ -9,10 +9,13 @@ Open items in `data` on `feat/indexing`. Each stays here until it is closed or a
 > `dev.simplified.serverapi.security.PermitAllSecurityConfig` is never registered. The Spring Boot
 > security starter reaches the classpath as an `api` dependency of `spring-framework`, and with no
 > `SecurityFilterChain` bean of the application's own Spring Boot applies its default chain, which
-> requires authentication on every request - `/actuator/prometheus` included - so the scrape the
-> `infra/prometheus` stack makes would be refused. This is read from the code and has not been
-> checked against a running container. `SimplifiedData`'s javadoc and `application.properties` both
-> say the scan registers the framework's configuration.
+> permits the health endpoint and requires authentication on every other request -
+> `/actuator/prometheus` included - so the scrape the `infra/prometheus` stack makes would be
+> refused. This is read from the code and has not been checked against a running container.
+> `SimplifiedData`'s javadoc and `application.properties` both say the scan registers the
+> framework's configuration, and the javadoc also says the only endpoint served is
+> `/actuator/prometheus`, where the container serves Actuator's other exposed endpoints, Spring
+> Boot's `/error`, and the `/login` and `/logout` of the default chain as well.
 >
 > - Affected: `src/main/java/dev/sbs/data/SimplifiedData.java:18` - `scanBasePackages`, javadoc at
 >   `:14-16`; `src/main/resources/application.properties:9-12`

@@ -58,14 +58,19 @@ write queue, its retry map and its dead-letter map.
 - **`SimplifiedData`** - the Spring Boot application, and the shadow jar's `Main-Class`. It runs a
   servlet container on 8080 inside the private `skyblock-hazelcast-net` docker network, never
   published to the host, which serves Actuator's `health`, `info`, `metrics` and `prometheus`
-  endpoints and no controller of its own. It holds no `JpaSession` and opens no database:
+  endpoints, Spring Boot's `/error` and the `/login` and `/logout` of Spring Security's default
+  chain - no controller of its own. It holds no `JpaSession` and opens no database:
   `PersistenceConfig` wires the corpus and a Hazelcast client to the dockerized cluster, and
   `WriteQueueConsumer` writes straight through the corpus's writable source.
 - `scanBasePackages` names `dev.sbs.data` and `dev.sbs.serverapi`. The spring-framework library
   this module depends on declares its configuration under `dev.simplified.serverapi`, which that
   scan does not name, so none of the library's `@Configuration` classes is picked up by it -
   including `PermitAllSecurityConfig`, which `api.key.authentication.enabled=false` in
-  `application.properties` is meant to select.
+  `application.properties` is meant to select. With no `SecurityFilterChain` of the application's
+  own, the default chain of Spring Boot's `ManagementWebSecurityAutoConfiguration` applies: it
+  permits the health endpoint, requires authentication for every other request,
+  `/actuator/prometheus` included, and turns on HTTP basic and form login, whose generated login
+  and logout pages answer at `/login` and `/logout`.
 
 ### Package Structure
 
@@ -79,11 +84,12 @@ Everything is under `dev.sbs.data`:
 
 - **`config/`**:
   - `PersistenceConfig` - two beans. `skyBlockCorpus` is `SkyBlockData.corpus()` named with the
-    token `GitHubToken.of` reads from `SKYBLOCK_DATA_GITHUB_TOKEN` (`TOKEN_VARIABLE`), which
-    throws on an unset or blank variable as the bean is built. `skyBlockWriteHazelcastInstance`
-    is `HazelcastClient.newHazelcastClient()` over the classpath `hazelcast-client.xml`
-    (cluster `skyblock`, member `hazelcast:5701`), shut down by a `@PreDestroy` method when the
-    context closes.
+    token `GitHubToken.of` reads from `SKYBLOCK_DATA_GITHUB_TOKEN` (`TOKEN_VARIABLE`) through
+    `SystemUtil.getEnv`, described under Environment variables below. It throws as the bean is
+    built when the variable is missing or empty; a value of whitespace alone is taken and sent.
+    `skyBlockWriteHazelcastInstance` is `HazelcastClient.newHazelcastClient()` over the classpath
+    `hazelcast-client.xml` (cluster `skyblock`, member `hazelcast:5701`), shut down by a
+    `@PreDestroy` method when the context closes.
 
 - **`write/`**:
   - `WriteQueueConsumer` - `@Component` applying queued writes to the corpus through the
@@ -154,23 +160,31 @@ them.
 - **`spring-framework`** (`com.github.simplified-dev:spring-framework`) - exports Spring Boot 4's
   `spring-boot-starter-web`, `spring-boot-starter-actuator` and `spring-boot-starter-security`
   through `api()`, so this module declares no Spring Boot starter of its own.
-- **`micrometer-registry-prometheus` 1.14.5** - renders the meters as the
-  `/actuator/prometheus` scrape output; pinned in the catalog because this module imports no
-  Spring Boot BOM.
+- **`micrometer-registry-prometheus` 1.16.4** - Spring Boot serves `/actuator/prometheus`, the
+  scrape output every meter renders to, only with the registry on the classpath, and the actuator
+  starter does not carry it. This module imports no Spring Boot BOM, so the catalog pins it, at
+  the Micrometer line Spring Boot 4.0.5 manages: it resolves with the `micrometer-core` 1.16.4 the
+  actuator starter brings, and brings the `prometheus-metrics` 1.4.3 artifacts, the Prometheus
+  client version Spring Boot 4.0.5 manages.
 - **`com.hazelcast:hazelcast` 5.6.0** - the client that carries the write queue, its retry map
   and its dead-letter map, and the in-process member `WriteQueueConsumerTest` drains against.
-- **`client`**, **`gson-extras`** and **`collections`** (`com.github.simplified-dev`) - the
-  `GsonSettings` behind `DataApi` and the `Concurrent` collections.
+- **`client`**, **`gson-extras`** and **`collections`** (`com.github.simplified-dev`) - the HTTP
+  client the corpus calls through, the `GsonSettings` behind `DataApi`, and the `Concurrent`
+  collections.
 - Tests use JUnit 5, Hamcrest and `spring-boot-starter-webmvc-test`.
 
 ### Environment variables
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `SKYBLOCK_DATA_GITHUB_TOKEN` | required | unset | Fine-grained PAT with `contents:write` on the `simplified-api/skyblock` repo, which carries the corpus. Nothing reads the corpus at startup: the token authenticates the requests each queued write makes - the catalogue refresh and the layer reads before it rewrites a document, then the PUT that rewrites it - and lifts them off the 60 req/hr unauthenticated budget. An unset or blank variable fails context refresh when the `skyBlockCorpus` bean is built, before any request; a token that is expired or lacks write scope shows up as a failed write, which the queue retries and then dead-letters, not as a failed boot. |
+| `SKYBLOCK_DATA_GITHUB_TOKEN` | required | unset | Fine-grained PAT with `contents:write` on the `simplified-api/skyblock` repo, which carries the corpus. Nothing reads the corpus at startup: the token authenticates the requests each queued write makes - the catalogue refresh and the layer reads before it rewrites a document, then the PUT that rewrites it - and lifts them off the 60 req/hr unauthenticated budget. A missing or empty variable fails context refresh when the `skyBlockCorpus` bean is built, before any request, while one of whitespace alone is taken and sent; a token that is expired or lacks write scope shows up as a failed write, which the queue retries and then dead-letters, not as a failed boot. |
 | `SKYBLOCK_HAZELCAST` | optional | unset | When set to `true`, enables the Spring context-loads test in `SimplifiedDataApplicationTests`, which needs a live Hazelcast cluster and `SKYBLOCK_DATA_GITHUB_TOKEN`; otherwise the test reports as skipped. Does not affect production behavior. |
 
 `PersistenceConfig.skyBlockCorpus()` reads the token variable, named by
-`PersistenceConfig.TOKEN_VARIABLE`, straight from the environment through `GitHubToken.of`; no
-Spring property carries it. The corpus client holds it and sends it as an
+`PersistenceConfig.TOKEN_VARIABLE`, through `GitHubToken.of`, which looks it up with
+`dev.simplified.util.SystemUtil.getEnv`: the name is matched case-insensitively against the OS
+environment laid over two `.env` sources, the class-loader resource `../.env` and a `.env` in the
+directory holding the jar or class directory `SystemUtil` was loaded from. In the shadow jar that
+directory is the jar's own, `/app` in the image, which the `Dockerfile` puts no `.env` in. No
+Spring property carries the token. The corpus client holds it and sends it as an
 `Authorization: Bearer` header on every request it makes.
