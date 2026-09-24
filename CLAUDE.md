@@ -25,8 +25,8 @@ SKYBLOCK_HAZELCAST=true ./gradlew :data:test
 
 `data` is the autonomous data writer service for the SkyBlock-Simplified initiative: a Spring
 Boot context that drains the `skyblock.writes` IQueue on the docker cluster defined in
-`infra/hazelcast/` and applies each write to the skyblock-data repo through the corpus's writable
-source. It opens no database and holds no second-level cache; the Hazelcast client carries the
+`infra/hazelcast/` and applies each write to the corpus - `data/v1` in the `simplified-api/skyblock`
+repo - through the corpus's writable source. It opens no database and holds no second-level cache; the Hazelcast client carries the
 write queue, its retry map and its dead-letter map.
 
 ### Phase scope tracker
@@ -160,7 +160,7 @@ write queue, its retry map and its dead-letter map.
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `SKYBLOCK_GITHUB_TOKEN` | required | unset | Fine-grained PAT with `contents:write` on the skyblock-data repo. Nothing reads the corpus at startup: the token authenticates the requests each queued write makes - the catalogue refresh and the layer reads before it rewrites a document, then the PUT that rewrites it - and lifts them off the 60 req/hr unauthenticated budget. An unset or blank variable fails context refresh when the `skyBlockCorpus` bean is built, before any request; a token that is expired or lacks write scope shows up as a failed write, which the queue retries and then dead-letters, not as a failed boot. |
+| `SKYBLOCK_GITHUB_TOKEN` | required | unset | Fine-grained PAT with `contents:write` on the `simplified-api/skyblock` repo, which carries the corpus. Nothing reads the corpus at startup: the token authenticates the requests each queued write makes - the catalogue refresh and the layer reads before it rewrites a document, then the PUT that rewrites it - and lifts them off the 60 req/hr unauthenticated budget. An unset or blank variable fails context refresh when the `skyBlockCorpus` bean is built, before any request; a token that is expired or lacks write scope shows up as a failed write, which the queue retries and then dead-letters, not as a failed boot. |
 | `SKYBLOCK_HAZELCAST` | optional | unset | When set to `true`, enables the Spring context-loads test in `SimplifiedDataApplicationTests`, which needs a live Hazelcast cluster and `SKYBLOCK_GITHUB_TOKEN`; otherwise the test reports as skipped. Does not affect production behavior. |
 
 `PersistenceConfig.skyBlockCorpus()` reads the token variable, named by
