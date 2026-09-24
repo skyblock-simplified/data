@@ -49,12 +49,12 @@ dependencies {
     // since data does not import spring-boot-dependencies as a BOM.
     implementation(libs.micrometer.registry.prometheus)
 
-    // Hazelcast - promoted from runtimeOnly to implementation in Phase 6b because
-    // PersistenceConfig now references HazelcastInstance + HazelcastClient directly
-    // for the write-path bean, the WriteQueueConsumer uses IQueue<WriteRequest>
-    // as its drain entry point, and the WriteBatchScheduler iterates the registry
-    // via an IMap for the dead-letter dump. Earlier phases only used Hazelcast
-    // indirectly through the JCache SPI which is why runtimeOnly was sufficient.
+    // Hazelcast - the client carries the write queue, its retry map and its dead-letter
+    // map. PersistenceConfig builds it from the classpath hazelcast-client.xml, and
+    // WriteQueueConsumer drains the skyblock.writes IQueue, parks a failed write in the
+    // skyblock.writes.retry IMap and moves a spent one to skyblock.writes.deadletter;
+    // WriteMetrics gauges all three. The same jar runs the in-process member
+    // WriteQueueConsumerTest drains against.
     implementation(libs.hazelcast)
 
     // Simplified infrastructure (formerly transitive via minecraft-api)
