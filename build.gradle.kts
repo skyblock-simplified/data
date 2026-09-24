@@ -62,8 +62,8 @@ dependencies {
     implementation("com.github.simplified-dev:gson-extras") { version { strictly("ed1d77e") } }
 
     // Split minecraft-api modules - data only consumes the persistence API.
-    // SkyBlockData, SkyBlockFactory, the 43 JPA entities, and minecraft-text (transitively
-    // via api()) all flow in from this single dep.
+    // SkyBlockData, the corpus models and minecraft-text (transitively via api()) flow in from
+    // this one dependency.
     implementation("com.github.simplified-api:skyblock") { version { strictly("d566734") } }
 
     // The shared SkyBlock-Simplified library, which owns the envelope the write queue carries -

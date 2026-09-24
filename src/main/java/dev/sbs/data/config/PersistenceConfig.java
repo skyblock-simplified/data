@@ -21,7 +21,7 @@ import org.springframework.context.annotation.Configuration;
  *
  * <p>This service is the one deployment that holds a write token, so it is the one that asks the
  * corpus for its write half. Every other consumer reads. That difference is the token and nothing
- * else - no flag, no mode, no second factory.
+ * else - no flag, no mode, no second source.
  *
  * <p>There is one session and it holds no driver. The rows every repository serves come from the
  * corpus, so no database is opened, no schema is created and no second-level cache exists to

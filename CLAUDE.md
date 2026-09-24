@@ -149,10 +149,9 @@ GitHub asset polling, and the skyblock-data repo integration.
 
 ### Dependencies
 
-- **`minecraft-api`** - reuses the model layer and `SkyBlockFactory` from the existing
-  Hypixel/Mojang client module. Provides the parameterized
-  `MinecraftApi.connectSkyBlockSession(JpaCacheProvider)` overload that this module's
-  `PersistenceConfig` delegates to.
+- **`skyblock`** (`com.github.simplified-api:skyblock`) - the corpus models and `SkyBlockData`, whose
+  `corpus()` names the published corpus and whose `writing(corpus)` answers the writable source
+  `PersistenceConfig` registers, with every model under `Item`'s package, on a session of its own.
 - **`spring-boot-starter`** - context, lifecycle, configuration.
 - **`spring-boot-starter-actuator`** - health and metrics endpoints (Phase 2c verification).
 - **`com.hazelcast:hazelcast` 5.6.0** (`implementation`) - Hazelcast Java client. Promoted
