@@ -2,16 +2,15 @@ package dev.sbs.data.config;
 
 import api.simplified.github.GitHubCorpus;
 import api.simplified.github.GitHubToken;
-import api.simplified.skyblock.SkyBlockFactory;
+import api.simplified.skyblock.SkyBlockData;
+import api.simplified.skyblock.model.Item;
 import com.hazelcast.client.HazelcastClient;
 import com.hazelcast.core.HazelcastInstance;
-import dev.sbs.data.DataApi;
 import dev.simplified.annotations.Log;
-import dev.simplified.gson.GsonSettings;
 import dev.simplified.persistence.JpaConfig;
+import dev.simplified.persistence.JpaModel;
 import dev.simplified.persistence.JpaSession;
 import dev.simplified.persistence.SessionManager;
-import dev.simplified.util.Logging;
 import jakarta.annotation.PreDestroy;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.context.annotation.Bean;
@@ -33,6 +32,11 @@ import org.springframework.context.annotation.Configuration;
 public class PersistenceConfig {
 
     /**
+     * The environment variable holding the GitHub personal access token the corpus is written with.
+     */
+    public static final @NotNull String TOKEN_VARIABLE = "SKYBLOCK_GITHUB_TOKEN";
+
+    /**
      * The write-path Hazelcast client, held so {@link #shutdownWriteHazelcastInstance()} can close
      * it on context teardown.
      */
@@ -41,42 +45,34 @@ public class PersistenceConfig {
     /**
      * The corpus this service reads and writes.
      *
-     * <p>The token is read from {@value SkyBlockFactory#TOKEN_VARIABLE} and an unset one is answered
-     * here, at startup, rather than as a rejected write later. It authenticates the polling reads
-     * too, which is what lifts them off the sixty-an-hour cap an anonymous client works under.
+     * <p>The token is read from {@value #TOKEN_VARIABLE} and an unset one is answered here, at
+     * startup, rather than as a rejected write later. It authenticates the polling reads too, which
+     * is what lifts them off the sixty-an-hour cap an anonymous client works under.
      *
      * @return the corpus
      */
     @Bean
     public @NotNull GitHubCorpus skyBlockCorpus() {
-        return SkyBlockFactory.corpus()
-            .token(GitHubToken.of(SkyBlockFactory.TOKEN_VARIABLE))
+        return SkyBlockData.corpus()
+            .token(GitHubToken.of(TOKEN_VARIABLE))
             .build();
     }
 
     /**
      * The corpus session, holding a generation of every registered type.
      *
-     * <p>The factory is the writing one, so {@link JpaSession#write} has a source to apply through.
-     * Every other consumer builds the reading factory and has no write half to reach for.
+     * <p>The source is the writing one, so {@link JpaSession#write} has a write half to apply
+     * through. Every other consumer builds the reading source and has none to reach for.
      *
      * @param skyBlockCorpus the corpus
      * @return the session
      */
     @Bean
     public @NotNull JpaSession skyBlockSession(@NotNull GitHubCorpus skyBlockCorpus) {
-        JpaSession session = new SessionManager().connect(
-            JpaConfig.builder()
-                .withRepositoryFactory(SkyBlockFactory.writing(skyBlockCorpus))
-                .withGsonSettings(
-                    DataApi.getGsonSettings()
-                        .mutate()
-                        .withStringType(GsonSettings.StringType.DEFAULT)
-                        .build()
-                )
-                .withLogLevel(Logging.Level.WARN)
-                .build()
-        );
+        JpaSession session = new SessionManager().connect(new JpaConfig(
+            JpaModel.resolveModels(Item.class),
+            SkyBlockData.writing(skyBlockCorpus)
+        ));
 
         log.info("data corpus session wired against '{}' with a write instruction", skyBlockCorpus);
         return session;

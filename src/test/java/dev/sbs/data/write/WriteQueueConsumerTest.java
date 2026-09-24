@@ -1,6 +1,6 @@
 package dev.sbs.data.write;
 
-import api.simplified.skyblock.SkyBlockFactory;
+import api.simplified.skyblock.model.Item;
 import api.simplified.skyblock.model.Region;
 import com.google.gson.Gson;
 import com.hazelcast.collection.IQueue;
@@ -74,12 +74,7 @@ class WriteQueueConsumerTest {
         this.hazelcast = Hazelcast.newHazelcastInstance(config);
         this.origin = new RecordingOrigin();
         this.sessionManager = new SessionManager();
-        this.session = this.sessionManager.connect(
-            JpaConfig.builder()
-                .withRepositoryFactory(new SkyBlockFactory(this.origin))
-                .withGsonSettings(SkyBlockFactory.corpusSettings())
-                .build()
-        );
+        this.session = this.sessionManager.connect(new JpaConfig(JpaModel.resolveModels(Item.class), this.origin));
 
         this.consumer = new WriteQueueConsumer(
             this.hazelcast,
