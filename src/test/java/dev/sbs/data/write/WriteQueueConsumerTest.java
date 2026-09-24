@@ -178,7 +178,7 @@ class WriteQueueConsumerTest {
 
         assertDrains(2);
 
-        // One request carrying both rows, because the origin rewrites a whole document per write.
+        // One request carrying both rows, because the source rewrites each file a write changes once.
         assertThat(this.origin.applied.size(), is(1));
         assertThat(this.origin.applied.getFirst().rows().size(), is(2));
     }

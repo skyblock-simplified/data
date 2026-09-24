@@ -39,9 +39,9 @@ import java.util.concurrent.TimeUnit;
  * it does not write, so it holds no generation for a write to rebuild.
  *
  * <p>A cycle drains what is waiting, groups it by type and operation, and issues one write per
- * group. Grouping is worth doing because a document origin rewrites a whole file per write, so N
- * rows of one type in one request is one commit rather than N. It is not a correctness concern - a
- * write of one row is a legal write.
+ * group. Grouping is worth doing because a document source rewrites each file a write changes once,
+ * so N rows of one type in one request are one commit per changed file rather than N. It is not a
+ * correctness concern - a write of one row is a legal write.
  *
  * <p>A failure puts the envelope back with its attempt counter raised and its delay doubled, until
  * the cap, after which it is dead-lettered for an operator rather than retried forever.

@@ -44,7 +44,7 @@ public class PersistenceConfig {
      *
      * <p>The token is read from {@value #TOKEN_VARIABLE} and an unset one is answered here, at
      * startup, rather than as a rejected write later. It authenticates every read too - the
-     * catalogue refresh and the layer reads each write merges before it rewrites a document - which
+     * catalogue refresh and the layer reads each write makes before it rewrites a file - which
      * is what lifts them off the sixty-an-hour cap an anonymous client works under.
      *
      * @return the corpus

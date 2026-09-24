@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * Spring Boot application entry point for the SkyBlock Simplified data service.
  *
  * <p>Applies the writes the deployment queues against the SkyBlock corpus. It holds no session and
- * reads the corpus only to write it: each write merges the documents it rewrites and commits them
+ * reads the corpus only to write it: each write reads the layers it rewrites and commits them
  * back. No database is opened, and the Hazelcast client carries the write queue rather than a
  * second-level cache.</p>
  *
