@@ -2,9 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-See the root [`CLAUDE.md`](../CLAUDE.md) for cross-cutting patterns, dependency details, and the
-locked [data + Hazelcast initiative](../../../.claude/projects/W--Workspace-Java-SkyBlock-Simplified/memory/architecture_simplified_data_initiative.md)
-in the auto-memory.
+See the root [`CLAUDE.md`](../CLAUDE.md) for cross-cutting patterns and dependency details. The
+data + Hazelcast initiative - its locked decisions, open questions and phase log - is indexed in
+the auto-memory at `~/.claude/projects/W--Workspace-Java-Simplified/memory/architecture_simplified_data_initiative.md`.
 
 ## Build & Test
 
