@@ -13,9 +13,9 @@ in the auto-memory.
 ./gradlew :data:build          # Build (includes shadowJar)
 ./gradlew :data:test           # Run all tests
 
-# Spring Boot context test requires a live Hazelcast cluster on skyblock-hazelcast-net
-# Skip with SKYBLOCK_HAZELCAST_DISABLED=true in environments where the cluster is unavailable.
-SKYBLOCK_HAZELCAST_DISABLED=true ./gradlew :data:test
+# The Spring Boot context test needs a live Hazelcast cluster on skyblock-hazelcast-net and
+# SKYBLOCK_GITHUB_TOKEN set, so it is skipped unless SKYBLOCK_HAZELCAST=true.
+SKYBLOCK_HAZELCAST=true ./gradlew :data:test
 
 # Fat JAR
 ./gradlew :data:shadowJar      # Output: build/libs/data-0.1.0.jar
@@ -23,10 +23,11 @@ SKYBLOCK_HAZELCAST_DISABLED=true ./gradlew :data:test
 
 ## Module Overview
 
-`data` is the autonomous data writer service for the SkyBlock-Simplified initiative.
-Phase 2c scope is **scaffolding only**: a Spring Boot context that wires `JpaCacheProvider.HAZELCAST_CLIENT`
-against the docker cluster defined in `infra/hazelcast/`. Later phases add the IQueue write consumer,
-GitHub asset polling, and the skyblock-data repo integration.
+`data` is the autonomous data writer service for the SkyBlock-Simplified initiative: a Spring
+Boot context that drains the `skyblock.writes` IQueue on the docker cluster defined in
+`infra/hazelcast/` and applies each write to the skyblock-data repo through the corpus's writable
+source. It opens no database and holds no second-level cache; the Hazelcast client carries the
+write queue, its retry map and its dead-letter map.
 
 ### Phase scope tracker
 
@@ -159,12 +160,10 @@ GitHub asset polling, and the skyblock-data repo integration.
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `SKYBLOCK_DATA_GITHUB_TOKEN` | required (Phase 5+) | empty | Fine-grained PAT used by `GitHubConfig` for the `Authorization: Bearer <token>` header on every GitHub REST API call. No repository access is required - public repo content is always readable. Phase 5 loads all 41 SkyBlock entity JSONs from the skyblock-data repo at startup; without a PAT the 60 req/hr unauthenticated budget is exhausted mid-boot and `JpaSession.cacheRepositories()` throws `JpaException`, causing Spring to fail context refresh and the container to exit non-zero. Set the variable to unlock the 5000 req/hr authenticated budget. |
-| `SKYBLOCK_DATA_OVERLAY_PATH` | optional | `skyblock-data-overlay` | Base directory for `DiskOverlaySource` local-override lookups. Resolved as a `java.nio.file.Path`, either relative to the JVM working directory or absolute. The `RemoteSkyBlockFactory` joins this with `<@Table.name>.json` per model. Default resolves to a non-existent directory so production `DiskOverlaySource.load()` calls fall straight through to `RemoteJsonSource`. Dev contributors point this at a local `skyblock-data` checkout to test overrides without pushing to GitHub. |
-| `SKYBLOCK_HAZELCAST_DISABLED` | optional | unset | When set to `true`, disables the Spring context-loads integration test in `SimplifiedDataApplicationTests` so CI without a live Hazelcast cluster can still run the rest of the suite. Does NOT affect production behavior. |
+| `SKYBLOCK_GITHUB_TOKEN` | required | unset | Fine-grained PAT with `contents:write` on the skyblock-data repo. Nothing reads the corpus at startup: the token authenticates the requests each queued write makes - the catalogue refresh and the layer reads before it rewrites a document, then the PUT that rewrites it - and lifts them off the 60 req/hr unauthenticated budget. An unset or blank variable fails context refresh when the `skyBlockCorpus` bean is built, before any request; a token that is expired or lacks write scope shows up as a failed write, which the queue retries and then dead-letters, not as a failed boot. |
+| `SKYBLOCK_HAZELCAST` | optional | unset | When set to `true`, enables the Spring context-loads test in `SimplifiedDataApplicationTests`, which needs a live Hazelcast cluster and `SKYBLOCK_GITHUB_TOKEN`; otherwise the test reports as skipped. Does not affect production behavior. |
 
-Phase 4b reads `SKYBLOCK_DATA_GITHUB_TOKEN` via the Spring property placeholder
-`skyblock.data.github.token` defined in `application.properties`. The PAT is never persisted
-anywhere; it is resolved at context refresh, wrapped in a `Supplier<Optional<String>>`, and
-invoked per outbound HTTP request by the `dev.simplified.client.Client` dynamic-header
-interceptor.
+`PersistenceConfig.skyBlockCorpus()` reads the token variable, named by
+`PersistenceConfig.TOKEN_VARIABLE`, straight from the environment through `GitHubToken.of`; no
+Spring property carries it. The corpus client holds it and sends it as an
+`Authorization: Bearer` header on every request it makes.
