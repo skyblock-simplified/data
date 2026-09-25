@@ -2,9 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-See the root [`CLAUDE.md`](../CLAUDE.md) for cross-cutting patterns, dependency details, and the
-locked [data + Hazelcast initiative](../../../.claude/projects/W--Workspace-Java-SkyBlock-Simplified/memory/architecture_simplified_data_initiative.md)
-in the auto-memory.
+See the root [`CLAUDE.md`](../CLAUDE.md) for cross-cutting patterns and dependency details. The
+data + Hazelcast initiative - its locked decisions, open questions and phase log - is indexed in
+the auto-memory at `~/.claude/projects/W--Workspace-Java-Simplified/memory/architecture_simplified_data_initiative.md`.
 
 ## Build & Test
 
@@ -13,9 +13,9 @@ in the auto-memory.
 ./gradlew :data:build          # Build (includes shadowJar)
 ./gradlew :data:test           # Run all tests
 
-# Spring Boot context test requires a live Hazelcast cluster on skyblock-hazelcast-net
-# Skip with SKYBLOCK_HAZELCAST_DISABLED=true in environments where the cluster is unavailable.
-SKYBLOCK_HAZELCAST_DISABLED=true ./gradlew :data:test
+# The Spring Boot context test needs a live Hazelcast cluster on skyblock-hazelcast-net and
+# SKYBLOCK_DATA_GITHUB_TOKEN set, so it is skipped unless SKYBLOCK_HAZELCAST=true.
+SKYBLOCK_HAZELCAST=true ./gradlew :data:test
 
 # Fat JAR
 ./gradlew :data:shadowJar      # Output: build/libs/data-0.1.0.jar
@@ -23,10 +23,11 @@ SKYBLOCK_HAZELCAST_DISABLED=true ./gradlew :data:test
 
 ## Module Overview
 
-`data` is the autonomous data writer service for the SkyBlock-Simplified initiative.
-Phase 2c scope is **scaffolding only**: a Spring Boot context that wires `JpaCacheProvider.HAZELCAST_CLIENT`
-against the docker cluster defined in `infra/hazelcast/`. Later phases add the IQueue write consumer,
-GitHub asset polling, and the skyblock-data repo integration.
+`data` is the autonomous data writer service for the SkyBlock-Simplified initiative: a Spring
+Boot context that drains the `skyblock.writes` IQueue on the docker cluster defined in
+`infra/hazelcast/` and applies each write to the corpus - `data/v1` in the `simplified-api/skyblock`
+repo - through the corpus's writable source. It opens no database and holds no second-level cache; the Hazelcast client carries the
+write queue, its retry map and its dead-letter map.
 
 ### Phase scope tracker
 
@@ -54,123 +55,136 @@ GitHub asset polling, and the skyblock-data repo integration.
 
 ### Entry Point
 
-- **`SimplifiedData`** - Spring Boot application. Headless (no web server). Bootstraps a `JpaSession`
-  via `PersistenceConfig` that connects to the dockerized Hazelcast cluster as a Hazelcast client.
+- **`SimplifiedData`** - the Spring Boot application, and the shadow jar's `Main-Class`. It runs a
+  servlet container on 8080 inside the private `skyblock-hazelcast-net` docker network, never
+  published to the host, which serves Actuator's `health`, `info`, `metrics` and `prometheus`
+  endpoints, Spring Boot's `/error` and the `/login` and `/logout` of Spring Security's default
+  chain - no controller of its own. It holds no `JpaSession` and opens no database:
+  `PersistenceConfig` wires the corpus and a Hazelcast client to the dockerized cluster, and
+  `WriteQueueConsumer` writes straight through the corpus's writable source.
+- `scanBasePackages` names `dev.sbs.data` and `dev.sbs.serverapi`. The spring-framework library
+  this module depends on declares its configuration under `dev.simplified.serverapi`, which that
+  scan does not name, so none of the library's `@Configuration` classes is picked up by it -
+  including `PermitAllSecurityConfig`, which `api.key.authentication.enabled=false` in
+  `application.properties` is meant to select. With no `SecurityFilterChain` of the application's
+  own, the default chain of Spring Boot's `ManagementWebSecurityAutoConfiguration` applies: it
+  permits the health endpoint, requires authentication for every other request,
+  `/actuator/prometheus` included, and turns on HTTP basic and form login, whose generated login
+  and logout pages answer at `/login` and `/logout`.
 
 ### Package Structure
 
-- **`config/`** - `@Configuration` beans:
-  - `PersistenceConfig` - wires two `JpaSession` beans (`skyBlockSession` via
-    `RemoteSkyBlockFactory` + `JpaCacheProvider.HAZELCAST_CLIENT`, and `assetSession` via
-    `JpaCacheProvider.EHCACHE`), plus the Phase 6b `skyBlockWriteHazelcastInstance` bean
-    (a second Hazelcast client alongside the JCache-managed instance used for direct
-    IQueue / IMap access on the write path). Registers the Phase 6b `remoteSkyBlockFactory`
-    bean that the write-path beans inject to iterate the `getWritableSources()` registry.
-  - `GitHubConfig` - wires three Feign clients against `api.github.com`: the read-path
-    `skyBlockDataClient` (`Accept: application/vnd.github.raw+json` for raw file bodies),
-    the Phase 6b write-path `skyBlockDataWriteClient` (`Accept: application/vnd.github+json`
-    for JSON envelopes + PUT), and the Phase 6b dormant `skyBlockGitDataClient` (same JSON
-    media type, surface only - no production callers). All three share the same
-    `skyBlockDataAuthorizationSupplier` so one PAT covers every path.
+Everything is under `dev.sbs.data`:
 
-- **`client/`** - Feign contract interfaces + DTOs:
-  - `SkyBlockDataContract` - read path (Contents API raw media type).
-  - `SkyBlockDataWriteContract` - Phase 6b write path (Contents API JSON media type + PUT).
-  - `SkyBlockGitDataContract` - Phase 6b dormant Git Data API surface (getRef, getCommit,
-    getTree, createBlob, createTree, createCommit, updateRef) shipped with DTO round-trip
-    tests but no production caller. Reserved for a future Phase 6e multi-file commit
-    coalescing path.
+- **`SimplifiedData`** - the entry point above.
+- **`DataApi`** - service locator for this deployment's `GsonSettings.defaults()` and the `Gson`
+  it creates. `GsonSettings.defaults()` picks up every `ServiceLoader` contributor on the
+  classpath, so nothing registers an adapter by hand; `WriteQueueConsumer` decodes each queued
+  row with this `Gson`.
 
-- **`persistence/`** - `RemoteSkyBlockFactory` (wraps each model's source chain as
-  `WritableRemoteJsonSource(DiskOverlaySource(RemoteJsonSource(...)))` and exposes
-  `getWritableSources()` for the write-path beans) + `WritableRemoteJsonSource` (per-entity
-  buffer, `commitBatch` with manifest path resolution, 412 retry with blob SHA refetch,
-  escalation of failed mutations to the caller's retry queue).
+- **`config/`**:
+  - `PersistenceConfig` - two beans. `skyBlockCorpus` is `SkyBlockData.corpus()` named with the
+    token `GitHubToken.of` reads from `SKYBLOCK_DATA_GITHUB_TOKEN` (`TOKEN_VARIABLE`) through
+    `SystemUtil.getEnv`, described under Environment variables below. It throws as the bean is
+    built when the variable is missing or empty; a value of whitespace alone is taken and sent.
+    `skyBlockWriteHazelcastInstance` is `HazelcastClient.newHazelcastClient()` over the classpath
+    `hazelcast-client.xml` (cluster `skyblock`, member `hazelcast:5701`), shut down by a
+    `@PreDestroy` method when the context closes.
 
-- **`poller/`** - Phase 4c `AssetPoller` watchdog + `AssetDiffEngine` + Phase 5.5
-  `RefreshTrigger` SAM for targeted refresh.
+- **`write/`**:
+  - `WriteQueueConsumer` - `@Component` applying queued writes to the corpus through the
+    `Source.Writable` that `SkyBlockData.writing(corpus)` returns. On `ApplicationReadyEvent`
+    it registers the depth gauges and starts the daemon thread `skyblock-write-drain`, unless
+    `skyblock.data.github.write-consumer-enabled` is `false`; its `@PreDestroy` method
+    interrupts the thread and waits up to two seconds for it. Each `cycle()` polls the
+    `skyblock.writes` `IQueue` for up to 500 ms for one fresh `WriteEnvelope`, then takes every
+    entry of the `skyblock.writes.retry` `IMap` whose ready instant has passed, removing each
+    before dispatching it so a second consumer cannot take it too. The drained envelopes are
+    grouped by type name and operation, and each group is one `WriteRequest` - an upsert or a
+    delete over the group's rows, decoded with `DataApi`'s `Gson` - written through the source.
+    A failed group's envelopes go back on the retry map with the attempt raised by one and a
+    ready instant from `RetryEnvelope.computeReadyAt`; an envelope whose attempt would pass
+    `skyblock.data.github.write-retry-max-attempts` goes to the `skyblock.writes.deadletter`
+    `IMap` instead, for an operator. A package-private constructor takes the `Source.Writable`
+    directly, which is how `WriteQueueConsumerTest` puts a recording source under it.
+  - `RetryEnvelope` - the `Serializable` value the retry map holds: the `WriteEnvelope`, the
+    attempt it represents (the original dispatch is attempt zero) and the epoch-millis instant
+    it becomes ready. `computeReadyAt` doubles the delay each attempt, starting from
+    `skyblock.data.github.write-retry-initial-delay-minutes`. The map lives in the cluster, so a
+    restart of this service picks pending retries back up.
+  - `WriteMetrics` - `@Component` holding every meter the write path publishes for the
+    Prometheus scrape: the counters `skyblock.writes.requests.received`,
+    `skyblock.writes.requests.retried` (tagged `attempt`) and `skyblock.writes.deadletter.added`
+    (tagged `type`); the timers `skyblock.writes.duration` (tagged `status`, `success` or
+    `failure`) and `skyblock.writes.end_to_end.latency`; and the gauges
+    `skyblock.writes.primary_queue.size`, `skyblock.writes.retry_imap.size` and
+    `skyblock.writes.deadletter_imap.size`.
 
-- **`write/`** - Phase 6b / 6b.1 write path:
-  - `WriteMode` - enum `{GIT_DATA, CONTENTS}` controlling the `WriteBatchScheduler.tick()`
-    dispatch. Phase 6b.1 default is `GIT_DATA`; `CONTENTS` is the Phase 6b per-file
-    commit path retained as operational fallback.
-  - `BufferedMutation<T>` - in-memory record of a single pending mutation (operation,
-    hydrated entity, producer request id, buffered timestamp, attempt counter).
-    The `attempt` field tracks retry cycles so the scheduler can compute
-    `nextAttempt = current + 1` on escalation, producing a bounded retry chain.
-  - `RetryEnvelope` - Serializable envelope stored in the `skyblock.writes.retry`
-    Hazelcast IMap during exponential backoff. Carries the `WriteRequest` plus
-    attempt counter plus absolute `readyAtEpochMillis`. Durable across consumer
-    restarts: an in-flight retry scheduled before a crash is picked up by the
-    next process's drain loop on its first scan iteration.
-  - `StagedBatch<T>` - per-source output of `WritableRemoteJsonSource.stageBatch()`.
-    Carries the dirty-file snapshot map (repo-root-relative path → mutated entity list)
-    and the list of mutations that drove the staging. Empty batches are silently ignored
-    by the scheduler.
-  - `BatchCommitRequest` - cross-source aggregation of every non-empty `StagedBatch` in
-    a scheduler tick. Merges into a single `Map<String, String>` of file path → new
-    UTF-8 body, plus the list of contributing `StagedBatch` instances for dead-letter
-    escalation.
-  - `GitDataCommitService` - `@Component` orchestrating the 7-step Git Data API flow
-    (`getRef` → `getCommit` → `createBlob` × N → `createTree(base_tree)` → `createCommit`
-    → `updateRef`). 3 immediate retries on 409/422 non-fast-forward, escalate to backoff
-    otherwise. Returns a `GitDataCommitResult` (success with new commit SHA, or failure
-    with root cause).
-  - `WriteQueueConsumer` - `@Component` daemon thread draining the `skyblock.writes`
-    Hazelcast IQueue and the `skyblock.writes.retry` Hazelcast IMap in alternation.
-    Each drain iteration polls the IQueue for 500ms; if nothing arrives, the loop
-    scans the retry IMap for entries whose `readyAt` has elapsed and atomically
-    removes + dispatches each eligible entry. The dispatch path is unified: both
-    fresh IQueue requests and retry IMap entries go through a single `dispatch`
-    method that resolves the entity class, rehydrates via Gson, and buffers a
-    `BufferedMutation` with the supplied attempt counter. Dead-letters exhausted
-    retries to the `skyblock.writes.deadletter` IMap for operator inspection.
-  - `WriteBatchScheduler` - `@Component` with `@Scheduled(fixedDelayString=10s)` that
-    dispatches on `WriteMode`:
-    - `GIT_DATA` (default): phase A stages every dirty source, phase B merges into a
-      `BatchCommitRequest` and hands it to `GitDataCommitService` for a single atomic
-      commit spanning every dirty file. Matches the original Q4 commit message format.
-    - `CONTENTS` (fallback): iterates sources and calls `commitBatch()` on each,
-      producing one Contents API PUT commit per dirty source per tick.
-    Failed mutations escalate to the consumer's retry IMap as `RetryEnvelope`
-    entries with `attempt = mutation.getAttempt() + 1` and the configured
-    exponential-backoff ready instant computed via
-    `RetryEnvelope.computeReadyAt`. The original producer request id is
-    preserved byte-identically across escalation cycles via
-    `WriteRequest.withRequestId(UUID)` (Phase 6b.2) so dead-letter queries
-    keyed on `requestId` correlate end-to-end from the initial producer
-    put through every retry attempt.
-  - `SmokeWriteSentinel` - `@Profile("smoke")` bean that puts a single synthetic
-    `WriteRequest` on startup for gate-7 end-to-end docker testing. Emits a sentinel
-    `Event` with id `SBS_WRITE_SMOKE_TEST` and expects the operator to revert
-    the mutation after verification. It reaches `id`, `name` and `description`
-    reflectively by string literal, which no compiler checks and
-    `SentinelFieldsTest` does.
+`WriteEnvelope`, the queued wire format, is not in this module. It lives in the shared
+`SkyBlock-Simplified/api` library as `dev.sbs.api.write.WriteEnvelope`, so the producer and this
+consumer read one definition.
+
+Resources: `application.properties` carries the servlet and Actuator settings,
+`api.key.authentication.enabled=false` and the three `skyblock.data.github.write-*` properties;
+`hazelcast-client.xml` names the client's cluster and member address; `logback.xml` configures
+logging.
+
+Tests: `WriteQueueConsumerTest` drains against a real in-process Hazelcast member, configured in
+code with a random cluster name and discovery off, over a recording source rather than GitHub.
+`SimplifiedDataApplicationTests` is the context-loads test gated on `SKYBLOCK_HAZELCAST`.
+
+`src/test/resources/hazelcast.xml` is a member configuration - cluster `skyblock-test`, port 5801
+with auto-increment over 20 ports, every join mechanism off - that nothing loads.
+`WriteQueueConsumerTest` passes its `Config` to `Hazelcast.newHazelcastInstance(Config)`, which
+reads no file, and nothing calls the no-argument form that would look for a classpath
+`hazelcast.xml`. The context the gated test starts holds one Hazelcast instance, the client
+`PersistenceConfig` builds from `hazelcast-client.xml`, and none of the Spring Boot 4.0.5 modules
+on the test classpath carries a Hazelcast auto-configuration that would build a member from the
+file.
 
 ### Dependencies
 
-- **`minecraft-api`** - reuses the model layer and `SkyBlockFactory` from the existing
-  Hypixel/Mojang client module. Provides the parameterized
-  `MinecraftApi.connectSkyBlockSession(JpaCacheProvider)` overload that this module's
-  `PersistenceConfig` delegates to.
-- **`spring-boot-starter`** - context, lifecycle, configuration.
-- **`spring-boot-starter-actuator`** - health and metrics endpoints (Phase 2c verification).
-- **`com.hazelcast:hazelcast` 5.6.0** (`implementation`) - Hazelcast Java client. Promoted
-  from `runtimeOnly` to `implementation` in Phase 6b because `PersistenceConfig`,
-  `WriteQueueConsumer`, and `WriteBatchScheduler` now reference direct Hazelcast symbols
-  (`HazelcastClient`, `HazelcastInstance`, `IQueue`, `IMap`). Earlier phases only used
-  Hazelcast indirectly through the JCache SPI so `runtimeOnly` was sufficient.
+Every Simplified coordinate is pinned `strictly` to a sha except `SkyBlock-Simplified/api`, taken
+as `master-SNAPSHOT`; building from the workspace root substitutes the local checkouts for all of
+them.
+
+- **`skyblock`** (`com.github.simplified-api:skyblock`) - the corpus models and `SkyBlockData`, whose
+  `corpus()` names the published corpus and whose `writing(corpus)` answers the writable source
+  `WriteQueueConsumer` applies every write through.
+- **`github`** (`com.github.simplified-api:github`) - `GitHubCorpus` and `GitHubToken`, reached
+  directly because this deployment is the one that holds a write token.
+- **`api`** (`com.github.skyblock-simplified:api`) - `WriteEnvelope`, the envelope the write queue
+  carries, shared with the producer.
+- **`persistence`** (`com.github.simplified-dev:persistence`) - `Source.Writable`, `WriteRequest`
+  and `JpaModel`, the terms a corpus write is made in.
+- **`spring-framework`** (`com.github.simplified-dev:spring-framework`) - exports Spring Boot 4's
+  `spring-boot-starter-web`, `spring-boot-starter-actuator` and `spring-boot-starter-security`
+  through `api()`, so this module declares no Spring Boot starter of its own.
+- **`micrometer-registry-prometheus` 1.16.4** - Spring Boot serves `/actuator/prometheus`, the
+  scrape output every meter renders to, only with the registry on the classpath, and the actuator
+  starter does not carry it. This module imports no Spring Boot BOM, so the catalog pins it, at
+  the Micrometer line Spring Boot 4.0.5 manages: it resolves with the `micrometer-core` 1.16.4 the
+  actuator starter brings, and brings the `prometheus-metrics` 1.4.3 artifacts, the Prometheus
+  client version Spring Boot 4.0.5 manages.
+- **`com.hazelcast:hazelcast` 5.6.0** - the client that carries the write queue, its retry map
+  and its dead-letter map, and the in-process member `WriteQueueConsumerTest` drains against.
+- **`client`**, **`gson-extras`** and **`collections`** (`com.github.simplified-dev`) - the HTTP
+  client the corpus calls through, the `GsonSettings` behind `DataApi`, and the `Concurrent`
+  collections.
+- Tests use JUnit 5, Hamcrest and `spring-boot-starter-webmvc-test`.
 
 ### Environment variables
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `SKYBLOCK_DATA_GITHUB_TOKEN` | required (Phase 5+) | empty | Fine-grained PAT used by `GitHubConfig` for the `Authorization: Bearer <token>` header on every GitHub REST API call. No repository access is required - public repo content is always readable. Phase 5 loads all 41 SkyBlock entity JSONs from the skyblock-data repo at startup; without a PAT the 60 req/hr unauthenticated budget is exhausted mid-boot and `JpaSession.cacheRepositories()` throws `JpaException`, causing Spring to fail context refresh and the container to exit non-zero. Set the variable to unlock the 5000 req/hr authenticated budget. |
-| `SKYBLOCK_DATA_OVERLAY_PATH` | optional | `skyblock-data-overlay` | Base directory for `DiskOverlaySource` local-override lookups. Resolved as a `java.nio.file.Path`, either relative to the JVM working directory or absolute. The `RemoteSkyBlockFactory` joins this with `<@Table.name>.json` per model. Default resolves to a non-existent directory so production `DiskOverlaySource.load()` calls fall straight through to `RemoteJsonSource`. Dev contributors point this at a local `skyblock-data` checkout to test overrides without pushing to GitHub. |
-| `SKYBLOCK_HAZELCAST_DISABLED` | optional | unset | When set to `true`, disables the Spring context-loads integration test in `SimplifiedDataApplicationTests` so CI without a live Hazelcast cluster can still run the rest of the suite. Does NOT affect production behavior. |
+| `SKYBLOCK_DATA_GITHUB_TOKEN` | required | unset | Fine-grained PAT with `contents:write` on the `simplified-api/skyblock` repo, which carries the corpus. Nothing reads the corpus at startup: the token authenticates the requests each queued write makes - the catalogue refresh and the layer reads before it rewrites a document, then the PUT that rewrites it - and lifts them off the 60 req/hr unauthenticated budget. A missing or empty variable fails context refresh when the `skyBlockCorpus` bean is built, before any request, while one of whitespace alone is taken and sent; a token that is expired or lacks write scope shows up as a failed write, which the queue retries and then dead-letters, not as a failed boot. |
+| `SKYBLOCK_HAZELCAST` | optional | unset | When set to `true`, enables the Spring context-loads test in `SimplifiedDataApplicationTests`, which needs a live Hazelcast cluster and `SKYBLOCK_DATA_GITHUB_TOKEN`; otherwise the test reports as skipped. Does not affect production behavior. |
 
-Phase 4b reads `SKYBLOCK_DATA_GITHUB_TOKEN` via the Spring property placeholder
-`skyblock.data.github.token` defined in `application.properties`. The PAT is never persisted
-anywhere; it is resolved at context refresh, wrapped in a `Supplier<Optional<String>>`, and
-invoked per outbound HTTP request by the `dev.simplified.client.Client` dynamic-header
-interceptor.
+`PersistenceConfig.skyBlockCorpus()` reads the token variable, named by
+`PersistenceConfig.TOKEN_VARIABLE`, through `GitHubToken.of`, which looks it up with
+`dev.simplified.util.SystemUtil.getEnv`: the name is matched case-insensitively against the OS
+environment laid over two `.env` sources, the class-loader resource `../.env` and a `.env` in the
+directory holding the jar or class directory `SystemUtil` was loaded from. In the shadow jar that
+directory is the jar's own, `/app` in the image, which the `Dockerfile` puts no `.env` in. No
+Spring property carries the token. The corpus client holds it and sends it as an
+`Authorization: Bearer` header on every request it makes.

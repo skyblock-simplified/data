@@ -1,26 +1,24 @@
 package dev.sbs.data;
 
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.condition.DisabledIfEnvironmentVariable;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.boot.test.context.SpringBootTest;
 
 /**
  * Spring Boot context-loads test for {@link SimplifiedData}.
  *
- * <p>Disabled in environments without a running Hazelcast cluster on
- * {@code skyblock-hazelcast-net}, because {@link dev.sbs.data.config.PersistenceConfig}
- * blocks on cluster connection during application context startup. Set the environment variable
- * {@code SKYBLOCK_HAZELCAST_DISABLED=true} to skip this test in CI.</p>
+ * <p>Starting the context connects to a Hazelcast cluster and reads a write token, so this runs
+ * only where both are available. Set {@code SKYBLOCK_HAZELCAST=true} to run it; everywhere else it
+ * reports as skipped rather than failing on an absence it cannot do anything about.</p>
  */
 @SpringBootTest
-@DisabledIfEnvironmentVariable(named = "SKYBLOCK_HAZELCAST_DISABLED", matches = "true")
+@EnabledIfEnvironmentVariable(named = "SKYBLOCK_HAZELCAST", matches = "true")
 class SimplifiedDataApplicationTests {
 
     @Test
     void contextLoads() {
-        // Empty body; the @SpringBootTest annotation is the assertion.
-        // If the application context fails to start (e.g., Hazelcast cluster unreachable),
-        // this test fails with the underlying cause.
+        // Empty body; the annotation is the assertion. A context that cannot start fails here
+        // with the underlying cause.
     }
 
 }

@@ -34,37 +34,49 @@ dependencies {
     testImplementation(libs.junit.platform.launcher)
     testImplementation(libs.spring.boot.starter.test)
 
-    // Server framework - transitively provides spring-boot-starter-web and
-    // spring-boot-starter-actuator via api() exports. Phase 6b.3 swapped the
-    // previous spring-boot-starter + spring-boot-starter-actuator pair for this
-    // single dep so the Spring setup matches server / server-api, and
-    // data picks up the servlet container required for the
-    // /actuator/prometheus scrape endpoint. API key authentication is disabled
-    // in application.properties because data exposes no REST
-    // endpoints to protect.
-    implementation("com.github.simplified-dev:spring-framework") { version { strictly("6c1497b") } }
+    // Server framework - its api() exports supply the Spring Boot starters this service runs
+    // on: spring-boot-starter-web for the servlet container on 8080, spring-boot-starter-actuator
+    // for /actuator/prometheus, and spring-boot-starter-security, so the only starter declared
+    // here is the test one; it exports client and gson-extras as well. The container serves
+    // Actuator's endpoints, Spring Boot's /error, and the /login and /logout of Spring Security's
+    // default chain, which applies because none of the library's security configurations is
+    // registered. No controller is this module's own, so application.properties sets
+    // api.key.authentication.enabled=false.
+    implementation("com.github.simplified-dev:spring-framework") { version { strictly("aa8f379") } }
 
-    // Micrometer Prometheus registry - Phase 6b.3. Version pinned explicitly via
-    // the catalog to avoid drift against Spring Boot's managed dependencies
-    // since data does not import spring-boot-dependencies as a BOM.
+    // Micrometer Prometheus registry - Spring Boot serves /actuator/prometheus only with it on the
+    // classpath, and the actuator starter does not carry it. The catalog pins it at 1.16.4, the
+    // Micrometer line Spring Boot 4.0.5 manages, since data imports no BOM that would supply one.
     implementation(libs.micrometer.registry.prometheus)
 
-    // Hazelcast - promoted from runtimeOnly to implementation in Phase 6b because
-    // PersistenceConfig now references HazelcastInstance + HazelcastClient directly
-    // for the write-path bean, the WriteQueueConsumer uses IQueue<WriteRequest>
-    // as its drain entry point, and the WriteBatchScheduler iterates the registry
-    // via an IMap for the dead-letter dump. Earlier phases only used Hazelcast
-    // indirectly through the JCache SPI which is why runtimeOnly was sufficient.
+    // Hazelcast - the client carries the write queue, its retry map and its dead-letter
+    // map. PersistenceConfig builds it from the classpath hazelcast-client.xml, and
+    // WriteQueueConsumer drains the skyblock.writes IQueue, parks a failed write in the
+    // skyblock.writes.retry IMap and moves a spent one to skyblock.writes.deadletter;
+    // WriteMetrics gauges all three. The same jar runs the in-process member
+    // WriteQueueConsumerTest drains against.
     implementation(libs.hazelcast)
 
-    // Simplified infrastructure (formerly transitive via minecraft-api)
-    implementation("com.github.simplified-dev:client") { version { strictly("2ced9a4") } }
-    implementation("com.github.simplified-dev:gson-extras") { version { strictly("ed1d77e") } }
+    // gson-extras holds DataApi's GsonSettings; client is the HTTP client the corpus calls through
+    implementation("com.github.simplified-dev:client") { version { strictly("345de19") } }
+    implementation("com.github.simplified-dev:gson-extras") { version { strictly("3ac0d4f") } }
 
-    // Split minecraft-api modules - data only consumes the persistence API.
-    // SkyBlockData, SkyBlockFactory, the 43 JPA entities, and minecraft-text (transitively
-    // via api()) all flow in from this single dep.
-    implementation("com.github.simplified-api:skyblock") { version { strictly("d566734") } }
+    // The SkyBlock corpus - SkyBlockData, whose corpus() names the published corpus and whose
+    // writing(corpus) answers the writable source every queued write goes through, and the
+    // corpus models. minecraft-text reaches the classpath through its api() exports.
+    implementation("com.github.simplified-api:skyblock") { version { strictly("929a393") } }
+
+    // The shared SkyBlock-Simplified library, which owns the envelope the write queue carries -
+    // one definition of the wire format, spoken by the producer and by this consumer.
+    implementation("com.github.skyblock-simplified:api:master-SNAPSHOT")
+
+    // The corpus client - GitHubCorpus and its write instruction. Reached directly because this
+    // deployment is the one that holds a token, and holding one is the whole of what makes it a
+    // writer.
+    implementation("com.github.simplified-api:github") { version { strictly("7847ddf") } }
+
+    implementation("com.github.simplified-dev:persistence") { version { strictly("ecc0e43") } }
+    implementation("com.github.simplified-dev:collections") { version { strictly("4029e80") } }
 }
 
 tasks {

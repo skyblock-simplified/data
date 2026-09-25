@@ -1,22 +1,18 @@
 package dev.sbs.data;
 
 import com.google.gson.Gson;
-import dev.simplified.gson.GsonSettings;
 import dev.simplified.annotations.AccessLevel;
 import dev.simplified.annotations.Getter;
 import dev.simplified.annotations.NoArgsConstructor;
+import dev.simplified.gson.GsonSettings;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Service locator that replaces the former {@code MinecraftApi} static holder for
- * {@code data}.
+ * Service locator for this deployment's {@link Gson}.
  * <p>
- * Owns the {@link Gson} and {@link GsonSettings} used by the GitHub write path, the asset
- * poller, and the write-path schedulers. {@link GsonSettings#defaults()} walks the
- * {@code ServiceLoader} SPI and picks up contributors from every {@code *-api} jar on the
- * classpath automatically, so this locator never needs to register adapters manually.
- * Persistence access flows through {@code api.simplified.skyblock.SkyBlockData} directly - this
- * locator does not own it.
+ * {@link GsonSettings#defaults()} walks the {@code ServiceLoader} SPI and picks up a contributor
+ * from every jar on the classpath, so nothing here registers an adapter by hand - including the
+ * exclusion that keeps a resolved link out of a row on its way onto the write queue.
  */
 @NoArgsConstructor(access = AccessLevel.PRIVATE)
 public final class DataApi {
