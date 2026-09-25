@@ -1,6 +1,6 @@
 # Known open
 
-Open items in `data` on `feat/indexing`. Each stays here until it is closed or accepted.
+Open items in `data`. Each stays here until it is closed or accepted.
 
 > #### The scrape endpoint is probably refused, because the permit-all security config never registers
 > `SimplifiedData` scans `dev.sbs.data` and `dev.sbs.serverapi`, but `spring-framework`, pinned at
