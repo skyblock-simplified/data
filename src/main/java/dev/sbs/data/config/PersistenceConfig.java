@@ -20,9 +20,11 @@ import org.springframework.context.annotation.Configuration;
  * else - no flag, no mode, no second source.
  *
  * <p>There is no session and no driver. Nothing here reads the corpus except to write it - the
- * {@link WriteQueueConsumer} applies each write through {@link SkyBlockData#writing(GitHubCorpus)} -
- * so no generation is held, no database is opened and no second-level cache exists to configure.
- * The Hazelcast client that remains is the write queue's, not Hibernate's.
+ * {@link WriteQueueConsumer} applies each write through the config
+ * {@link SkyBlockData#writing(GitHubCorpus)} returns, whose write reads the layers it rewrites and
+ * the documents its link check needs - so no generation is held, no database is opened and no
+ * second-level cache exists to configure. The Hazelcast client that remains is the write queue's,
+ * not Hibernate's.
  */
 @Configuration
 @Log
@@ -44,8 +46,9 @@ public class PersistenceConfig {
      *
      * <p>The token is read from {@value #TOKEN_VARIABLE} and an unset one is answered here, at
      * startup, rather than as a rejected write later. It authenticates every read too - the
-     * catalogue refresh and the layer reads each write makes before it rewrites a file - which
-     * is what lifts them off the sixty-an-hour cap an anonymous client works under.
+     * catalogue refresh, the reads a write's link check makes and the layer reads each write makes
+     * before it rewrites a file - which is what lifts them off the sixty-an-hour cap an anonymous
+     * client works under.
      *
      * @return the corpus
      */
