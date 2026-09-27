@@ -26,8 +26,9 @@ SKYBLOCK_HAZELCAST=true ./gradlew :data:test
 `data` is the autonomous data writer service for the SkyBlock-Simplified initiative: a Spring
 Boot context that drains the `skyblock.writes` IQueue on the docker cluster defined in
 `infra/hazelcast/` and applies each write to the corpus - `data/v1` in the `simplified-api/skyblock`
-repo - through the corpus's writable source. It opens no database and holds no second-level cache; the Hazelcast client carries the
-write queue, its retry map and its dead-letter map.
+repo - through the `JpaConfig` that `SkyBlockData.writing(corpus)` returns, whose `write` checks
+each write's links before it commits. It opens no database and holds no second-level cache; the
+Hazelcast client carries the write queue, its retry map and its dead-letter map.
 
 ### Phase scope tracker
 
@@ -61,7 +62,8 @@ write queue, its retry map and its dead-letter map.
   endpoints, Spring Boot's `/error` and the `/login` and `/logout` of Spring Security's default
   chain - no controller of its own. It holds no `JpaSession` and opens no database:
   `PersistenceConfig` wires the corpus and a Hazelcast client to the dockerized cluster, and
-  `WriteQueueConsumer` writes straight through the corpus's writable source.
+  `WriteQueueConsumer` writes through the checked `write` of the `JpaConfig` that
+  `SkyBlockData.writing(corpus)` returns.
 - `scanBasePackages` names `dev.sbs.data` and `dev.sbs.serverapi`. The spring-framework library
   this module depends on declares its configuration under `dev.simplified.serverapi`, which that
   scan does not name, so none of the library's `@Configuration` classes is picked up by it -
@@ -92,21 +94,39 @@ Everything is under `dev.sbs.data`:
     `@PreDestroy` method when the context closes.
 
 - **`write/`**:
-  - `WriteQueueConsumer` - `@Component` applying queued writes to the corpus through the
-    `Source.Writable` that `SkyBlockData.writing(corpus)` returns. On `ApplicationReadyEvent`
+  - `WriteQueueConsumer` - `@Component` applying queued writes to the corpus through
+    `JpaConfig.write` on the config that `SkyBlockData.writing(corpus)` returns, which checks a
+    write and then applies it through the corpus's writable source. On `ApplicationReadyEvent`
     it registers the depth gauges and starts the daemon thread `skyblock-write-drain`, unless
     `skyblock.data.github.write-consumer-enabled` is `false`; its `@PreDestroy` method
-    interrupts the thread and waits up to two seconds for it. Each `cycle()` polls the
-    `skyblock.writes` `IQueue` for up to 500 ms for one fresh `WriteEnvelope`, then takes every
-    entry of the `skyblock.writes.retry` `IMap` whose ready instant has passed, removing each
-    before dispatching it so a second consumer cannot take it too. The drained envelopes are
-    grouped by type name and operation, and each group is one `WriteRequest` - an upsert or a
-    delete over the group's rows, decoded with `DataApi`'s `Gson` - written through the source.
-    A failed group's envelopes go back on the retry map with the attempt raised by one and a
-    ready instant from `RetryEnvelope.computeReadyAt`; an envelope whose attempt would pass
-    `skyblock.data.github.write-retry-max-attempts` goes to the `skyblock.writes.deadletter`
-    `IMap` instead, for an operator. A package-private constructor takes the `Source.Writable`
-    directly, which is how `WriteQueueConsumerTest` puts a recording source under it.
+    interrupts the thread and waits up to two seconds for it. An envelope states one row's whole
+    final state, so the consumer keeps only the newest write of a row: the
+    `skyblock.writes.retry` `IMap` is keyed by row identity, `JpaModel.documentOf(type) + "/" +
+    key` with the key read by `JpaModel.keyOf(type)` (the accessor `JpaModel.keyed` keys the
+    source's rows with), and holds at most one waiting write per row. Each `cycle()` polls the
+    `skyblock.writes` `IQueue` for up to 500 ms for one fresh `WriteEnvelope` and decodes it with
+    `DataApi`'s `Gson` - its type, operation and row, and the row's key. One that does not decode,
+    or whose row carries no key, goes straight to the `skyblock.writes.deadletter` `IMap` under
+    its request id. One that does forms its row identity and removes that row's waiting retry,
+    due or not, logging the superseded request id beside its own. The cycle then takes every
+    retry whose ready instant has passed, removing each before dispatching it so a second
+    consumer cannot take it too, and dead-letters any that no longer decodes or whose row no
+    longer carries a key, since a keyless row fails every row of its group. The drained
+    envelopes are grouped by type name and operation, and each group is one `WriteRequest` - an
+    upsert or a delete over the group's rows - written through `JpaConfig.write`. Before it
+    commits, a write reads the documents a plain link (a `@Linked` field that is neither a list
+    nor an `Optional`) can dangle into - for an upsert, the documents its rows' plain links name;
+    for a delete, those of every registered type declaring a plain link into the deleted type -
+    and is refused, with nothing committed, when it would leave such a link naming no row. A
+    group of more than one envelope that fails, refused or not, is written again one envelope at
+    a time, so only the envelopes that fail alone go back on the retry map, under their rows with
+    the attempt raised by one and a ready instant from `RetryEnvelope.computeReadyAt`; an
+    envelope whose attempt would pass `skyblock.data.github.write-retry-max-attempts` is
+    dead-lettered instead, for an operator. A refused write is retried like any failure rather
+    than dead-lettered, since the write that lets it pass - the upsert of the row it names, or the
+    delete or re-point of a row naming a row it deletes - can be due in the same drain and land
+    after it. A package-private constructor takes the `JpaConfig` directly, which is how
+    `WriteQueueConsumerTest` puts a config over a recording source under it.
   - `RetryEnvelope` - the `Serializable` value the retry map holds: the `WriteEnvelope`, the
     attempt it represents (the original dispatch is attempt zero) and the epoch-millis instant
     it becomes ready. `computeReadyAt` doubles the delay each attempt, starting from
@@ -130,7 +150,8 @@ Resources: `application.properties` carries the servlet and Actuator settings,
 logging.
 
 Tests: `WriteQueueConsumerTest` drains against a real in-process Hazelcast member, configured in
-code with a random cluster name and discovery off, over a recording source rather than GitHub.
+code with a random cluster name and discovery off, through a `JpaConfig` over a recording source
+rather than GitHub, which answers the check's reads from the rows it was written.
 `SimplifiedDataApplicationTests` is the context-loads test gated on `SKYBLOCK_HAZELCAST`.
 
 `src/test/resources/hazelcast.xml` is a member configuration - cluster `skyblock-test`, port 5801
@@ -149,14 +170,14 @@ as `master-SNAPSHOT`; building from the workspace root substitutes the local che
 them.
 
 - **`skyblock`** (`com.github.simplified-api:skyblock`) - the corpus models and `SkyBlockData`, whose
-  `corpus()` names the published corpus and whose `writing(corpus)` answers the writable source
-  `WriteQueueConsumer` applies every write through.
+  `corpus()` names the published corpus and whose `writing(corpus)` answers the `JpaConfig`
+  whose checked `write` `WriteQueueConsumer` applies every write through.
 - **`github`** (`com.github.simplified-api:github`) - `GitHubCorpus` and `GitHubToken`, reached
   directly because this deployment is the one that holds a write token.
 - **`api`** (`com.github.skyblock-simplified:api`) - `WriteEnvelope`, the envelope the write queue
   carries, shared with the producer.
-- **`persistence`** (`com.github.simplified-dev:persistence`) - `Source.Writable`, `WriteRequest`
-  and `JpaModel`, the terms a corpus write is made in.
+- **`persistence`** (`com.github.simplified-dev:persistence`) - `JpaConfig`, whose `write` checks
+  and applies a corpus write, and `WriteRequest` and `JpaModel`, the terms the write is made in.
 - **`spring-framework`** (`com.github.simplified-dev:spring-framework`) - exports Spring Boot 4's
   `spring-boot-starter-web`, `spring-boot-starter-actuator` and `spring-boot-starter-security`
   through `api()`, so this module declares no Spring Boot starter of its own.
@@ -177,7 +198,7 @@ them.
 
 | Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `SKYBLOCK_DATA_GITHUB_TOKEN` | required | unset | Fine-grained PAT with `contents:write` on the `simplified-api/skyblock` repo, which carries the corpus. Nothing reads the corpus at startup: the token authenticates the requests each queued write makes - the catalogue refresh and the layer reads before it rewrites a document, then the PUT that rewrites it - and lifts them off the 60 req/hr unauthenticated budget. A missing or empty variable fails context refresh when the `skyBlockCorpus` bean is built, before any request, while one of whitespace alone is taken and sent; a token that is expired or lacks write scope shows up as a failed write, which the queue retries and then dead-letters, not as a failed boot. |
+| `SKYBLOCK_DATA_GITHUB_TOKEN` | required | unset | Fine-grained PAT with `contents:write` on the `simplified-api/skyblock` repo, which carries the corpus. Nothing reads the corpus at startup: the token authenticates the requests each queued write makes - the catalogue refresh, the reads of the documents its link check needs and the layer reads before it rewrites a document, then the PUT that rewrites it - and lifts them off the 60 req/hr unauthenticated budget. A missing or empty variable fails context refresh when the `skyBlockCorpus` bean is built, before any request, while one of whitespace alone is taken and sent; a token that is expired or lacks write scope shows up as a failed write, which the queue retries and then dead-letters, not as a failed boot. |
 | `SKYBLOCK_HAZELCAST` | optional | unset | When set to `true`, enables the Spring context-loads test in `SimplifiedDataApplicationTests`, which needs a live Hazelcast cluster and `SKYBLOCK_DATA_GITHUB_TOKEN`; otherwise the test reports as skipped. Does not affect production behavior. |
 
 `PersistenceConfig.skyBlockCorpus()` reads the token variable, named by

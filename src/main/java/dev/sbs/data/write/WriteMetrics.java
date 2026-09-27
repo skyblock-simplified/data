@@ -155,7 +155,7 @@ public class WriteMetrics {
      */
     public void registerDepthGauges(@NotNull HazelcastInstance instance) {
         IQueue<WriteEnvelope> queue = instance.getQueue(WriteQueueConsumer.QUEUE_NAME);
-        IMap<UUID, RetryEnvelope> retries = instance.getMap(WriteQueueConsumer.RETRY_MAP_NAME);
+        IMap<String, RetryEnvelope> retries = instance.getMap(WriteQueueConsumer.RETRY_MAP_NAME);
         IMap<UUID, WriteEnvelope> deadLetters = instance.getMap(WriteQueueConsumer.DEAD_LETTER_MAP_NAME);
 
         Gauge.builder(METER_PRIMARY_QUEUE_SIZE, queue, q -> (double) q.size())
