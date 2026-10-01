@@ -64,7 +64,7 @@ dependencies {
     // The SkyBlock corpus - SkyBlockData, whose corpus() names the published corpus and whose
     // writing(corpus) answers the config whose checked write every queued write goes through, and
     // the corpus models. minecraft-text reaches the classpath through its api() exports.
-    implementation("com.github.simplified-api:skyblock") { version { strictly("b459a7a") } }
+    implementation("com.github.simplified-api:skyblock") { version { strictly("95796a9") } }
 
     // The shared SkyBlock-Simplified library, which owns the envelope the write queue carries -
     // one definition of the wire format, spoken by the producer and by this consumer.
