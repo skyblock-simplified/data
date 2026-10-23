@@ -42,7 +42,7 @@ dependencies {
     // default chain, which applies because none of the library's security configurations is
     // registered. No controller is this module's own, so application.properties sets
     // api.key.authentication.enabled=false.
-    implementation("com.github.simplified-dev:spring-framework") { version { strictly("80980a7") } }
+    implementation("com.github.simplified-dev:spring-framework") { version { strictly("3fcd6e7") } }
 
     // Micrometer Prometheus registry - Spring Boot serves /actuator/prometheus only with it on the
     // classpath, and the actuator starter does not carry it. The catalog pins it at 1.16.4, the
@@ -58,13 +58,13 @@ dependencies {
     implementation(libs.hazelcast)
 
     // gson-extras holds DataApi's GsonSettings; client is the HTTP client the corpus calls through
-    implementation("com.github.simplified-dev:client") { version { strictly("b810558") } }
-    implementation("com.github.simplified-dev:gson-extras") { version { strictly("3ac0d4f") } }
+    implementation("com.github.simplified-dev:client") { version { strictly("566f6f6") } }
+    implementation("com.github.simplified-dev:gson-extras") { version { strictly("9026a04") } }
 
     // The SkyBlock corpus - SkyBlockData, whose corpus() names the published corpus and whose
     // writing(corpus) answers the config whose checked write every queued write goes through, and
     // the corpus models. minecraft-text reaches the classpath through its api() exports.
-    implementation("com.github.simplified-api:skyblock") { version { strictly("750e0e0") } }
+    implementation("com.github.simplified-api:skyblock") { version { strictly("ee544d7") } }
 
     // The shared SkyBlock-Simplified library, which owns the envelope the write queue carries -
     // one definition of the wire format, spoken by the producer and by this consumer.
@@ -73,9 +73,9 @@ dependencies {
     // The corpus client - GitHubCorpus and its write instruction. Reached directly because this
     // deployment is the one that holds a token, and holding one is the whole of what makes it a
     // writer.
-    implementation("com.github.simplified-api:github") { version { strictly("5ced8e6") } }
+    implementation("com.github.simplified-api:github") { version { strictly("d847ddd") } }
 
-    implementation("com.github.simplified-dev:persistence") { version { strictly("88109d8") } }
+    implementation("com.github.simplified-dev:persistence") { version { strictly("230d4b2") } }
     implementation("com.github.simplified-dev:collections") { version { strictly("4029e80") } }
 }
 
